@@ -81,7 +81,7 @@ jobs:
           DEMO_CONTROL_TOKEN: change-me-control
         run: |
           for _ in {1..60}; do
-            curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null && break
+            curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null 2>&1 && break
             sleep 5
           done
           scripts/smoke-test.sh
@@ -131,14 +131,14 @@ jobs:
         run: |
           kubectl -n guance-demo port-forward svc/demo-guance-observability-demo-gateway-service 8080:80 >/tmp/port-forward.log 2>&1 &
           for _ in {1..30}; do
-            curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null && break
+            curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null 2>&1 && break
             sleep 2
           done
           scripts/smoke-test.sh
           test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.securityContext.runAsUser}')" = "10001"
           test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
           test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=mysql -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
-          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.containers[0].env[?(@.name==\"DD_TAGS\")].value}')" = "project:mall-demo"
+          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.containers[0].env[?(@.name=="DD_TAGS")].value}')" = "project:mall-demo"
           test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=gateway-service -o jsonpath='{.items[0].spec.automountServiceAccountToken}')" = "false"
           kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.annotations.datakit/logs}' | grep -q java-selfheal-demo.p
           kubectl auth can-i get pods/log --as system:serviceaccount:guance-demo:demo-guance-observability-demo-log-reader -n guance-demo | grep -q yes
