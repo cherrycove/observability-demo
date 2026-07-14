@@ -80,10 +80,12 @@ jobs:
         env:
           DEMO_CONTROL_TOKEN: change-me-control
         run: |
-          for _ in {1..60}; do
-            curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null 2>&1 && break
-            sleep 5
-          done
+          if ! curl --fail --silent \
+            --retry 60 --retry-delay 5 --retry-all-errors --retry-max-time 300 \
+            http://127.0.0.1:8080/api/demo/config >/dev/null; then
+            echo "::error::Gateway and order-service did not become ready within 5 minutes"
+            exit 1
+          fi
           scripts/smoke-test.sh
           test "$(docker compose exec -T order-service printenv PROJECT_TAG)" = "mall-demo"
           test "$(docker compose exec -T order-service printenv DD_TAGS)" = "project:mall-demo"
@@ -130,10 +132,12 @@ jobs:
           DEMO_CONTROL_TOKEN: kind-control-token
         run: |
           kubectl -n guance-demo port-forward svc/demo-guance-observability-demo-gateway-service 8080:80 >/tmp/port-forward.log 2>&1 &
-          for _ in {1..30}; do
-            curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null 2>&1 && break
-            sleep 2
-          done
+          if ! curl --fail --silent \
+            --retry 30 --retry-delay 2 --retry-all-errors --retry-max-time 60 \
+            http://127.0.0.1:8080/api/demo/config >/dev/null; then
+            echo "::error::Gateway port-forward did not become ready within 1 minute"
+            exit 1
+          fi
           scripts/smoke-test.sh
           test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.securityContext.runAsUser}')" = "10001"
           test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
