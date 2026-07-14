@@ -1,0 +1,77 @@
+# Values for the official DataKit chart 2.5.0.
+# Supply the real DataWay URL only at install time; never commit it here.
+datakit:
+  dataway_url: ""
+  dataway_secret_enabled: true
+  dataway_secret_name: datakit-dataway-secret
+  dataway_secret_key: ENV_DATAWAY
+  cluster_name_k8s: guance-observability-demo
+  global_tags: host=__datakit_hostname,host_ip=__datakit_ip,project=mall-demo
+  default_enabled_inputs: statsd,dk,cpu,disk,diskio,mem,swap,system,hostobject,net,host_processes,container,kubernetesprometheus,ddtrace,profile,rum
+  http_listen: 0.0.0.0:9529
+  log_level: info
+
+extraEnvs:
+  - name: ENV_INPUT_CONTAINER_ENABLE_POD_METRIC
+    value: "true"
+  - name: ENV_INPUT_HOST_PROCESSES_OPEN_METRIC
+    value: "true"
+  - name: ENV_INPUT_HOST_PROCESSES_ONLY_CONTAINER_PROCESSES
+    value: "true"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+dkconfig:
+  - path: /usr/local/datakit/conf.d/ddtrace/ddtrace.conf
+    name: ddtrace.conf
+    value: |-
+      [[inputs.ddtrace]]
+        endpoints = ["/v0.3/traces", "/v0.4/traces", "/v0.5/traces"]
+        customer_tags = ["project", "demo", "component", "release", "key_request", "biz_chain", "biz_request_id", "fault_id", "fault_layer", "fault_kind", "fault_target", "process_id", "host_process_id", "container_process_id", "host", "host_name", "pod_name", "pod_namespace", "container_name", "container_id"]
+  - path: /usr/local/datakit/conf.d/profile/profile.conf
+    name: profile.conf
+    value: |-
+      [[inputs.profile]]
+        endpoints = ["/profiling/v1/input"]
+        election = false
+        body_size_limit_mb = 64
+        generate_metrics = true
+  - path: /usr/local/datakit/conf.d/rum/rum.conf
+    name: rum.conf
+    value: |-
+      [[inputs.rum]]
+        endpoints = ["/v1/write/rum"]
+        session_replay_endpoints = ["/v1/write/rum/replay"]
+        measurements = ["view", "resource", "action", "long_task", "error", "telemetry"]
+  - path: /usr/local/datakit/conf.d/statsd/ddtrace-jvm-statsd.conf
+    name: ddtrace-jvm-statsd.conf
+    value: |-
+      [[inputs.statsd]]
+        protocol = "udp"
+        service_address = ":8125"
+        metric_separator = "_"
+        drop_tags = ["runtime-id"]
+        metric_mapping = ["jvm_:jvm", "datadog_tracer_:ddtrace"]
+        delete_gauges = true
+        delete_counters = true
+        delete_sets = true
+        delete_timings = true
+        percentiles = [50.0, 90.0, 99.0, 99.9, 99.95, 100.0]
+        parse_data_dog_tags = true
+        datadog_extensions = true
+        datadog_distributions = true
+        allowed_pending_messages = 10000
+        percentile_limit = 1000
+  - path: /usr/local/datakit/pipeline/java-selfheal-demo.p
+    name: java-selfheal-demo.p
+    value: |-
+      grok(_, "%{TIMESTAMP_ISO8601:time}\\s+%{LOGLEVEL:status}\\s+\\[%{DATA:thread_name}\\]\\s+%{NOTSPACE:logger_name}\\s+-\\s+%{GREEDYDATA:message}\\s+\\|\\s+source=%{DATA:source}\\s+service=%{DATA:service}\\s+env=%{DATA:env}\\s+version=%{DATA:version}\\s+project=%{DATA:log_project}\\s+trace_id=%{DATA:trace_id}\\s+span_id=%{DATA:span_id}\\s+key_request=%{DATA:key_request}\\s+biz_request_id=%{DATA:biz_request_id}\\s+fault_id=%{DATA:fault_id}\\s+fault_layer=%{DATA:fault_layer}\\s+fault_kind=%{DATA:fault_kind}\\s+fault_target=%{DATA:fault_target}\\s+process_id=%{DATA:process_id}\\s+host_process_id=%{DATA:host_process_id}\\s+container_process_id=%{DATA:container_process_id}\\s+host=%{DATA:host}\\s+host_name=%{DATA:host_name}\\s+pod_name=%{DATA:pod_name}\\s+pod_namespace=%{DATA:pod_namespace}\\s+container_name=%{DATA:container_name}\\s+container_id=%{NOTSPACE:container_id}")
+      set_tag(project, log_project)
+      drop_key(log_project)
+      default_time(time, "Asia/Shanghai")

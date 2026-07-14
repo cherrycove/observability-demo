@@ -1,0 +1,183 @@
+{{- $services := list
+  (dict "name" "gateway-service" "port" 8080)
+  (dict "name" "order-service" "port" 8080)
+  (dict "name" "inventory-service" "port" 8081)
+  (dict "name" "payment-service" "port" 8082)
+-}}
+{{- range $index, $service := $services }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "guance-observability-demo.fullname" $ }}-{{ $service.name }}
+  labels:
+    {{- include "guance-observability-demo.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $service.name }}
+spec:
+  replicas: {{ $.Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "guance-observability-demo.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $service.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "guance-observability-demo.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $service.name }}
+        project: {{ required "observability.project is required" $.Values.observability.project | quote }}
+      annotations:
+        datakit/logs: >-
+          [{"disable":false,"source":"java_selfheal_demo","service":"{{ $service.name }}","pipeline":"java-selfheal-demo.p"}]
+    spec:
+      serviceAccountName: {{ include "guance-observability-demo.fullname" $ }}-{{ if and (eq $service.name "order-service") $.Values.logViewer.enabled }}log-reader{{ else }}app{{ end }}
+      automountServiceAccountToken: {{ and (eq $service.name "order-service") $.Values.logViewer.enabled }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $service.name }}
+          image: {{ include "guance-observability-demo.image" (dict "root" $ "service" $service.name) | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ $service.port }}
+              protocol: TCP
+          env:
+            - name: DD_SERVICE
+              value: {{ $service.name | quote }}
+            - name: DD_ENV
+              value: {{ $.Values.environment | quote }}
+            - name: DD_VERSION
+              value: {{ $.Values.image.tag | quote }}
+            - name: DD_TAGS
+              value: {{ printf "project:%s" $.Values.observability.project | quote }}
+            - name: PROJECT_TAG
+              value: {{ $.Values.observability.project | quote }}
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_TRACE_AGENT_PORT
+              value: "9529"
+            - name: DD_JMXFETCH_ENABLED
+              value: "true"
+            - name: DD_JMXFETCH_STATSD_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_JMXFETCH_STATSD_PORT
+              value: "8125"
+            - name: DD_PROFILING_ENABLED
+              value: "true"
+            - name: DD_LOGS_INJECTION
+              value: "true"
+            - name: DD_TRACE_HEADER_TAGS
+              value: "x-key-request:key_request,x-business-request-id:biz_request_id"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CONTAINER_NAME
+              value: {{ $service.name | quote }}
+            {{- if eq $service.name "gateway-service" }}
+            - name: ORDER_URL
+              value: http://{{ include "guance-observability-demo.fullname" $ }}-order-service:8080
+            {{- else if eq $service.name "order-service" }}
+            - name: MYSQL_URL
+              value: jdbc:mysql://{{ include "guance-observability-demo.fullname" $ }}-mysql:3306/{{ $.Values.mysql.database }}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&connectTimeout=3000&socketTimeout=5000
+            - name: MYSQL_USER
+              value: {{ $.Values.mysql.user | quote }}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "existingSecret is required" $.Values.existingSecret }}
+                  key: {{ $.Values.secretKeys.mysqlPassword }}
+            - name: INVENTORY_URL
+              value: http://{{ include "guance-observability-demo.fullname" $ }}-inventory-service:8081
+            - name: PAYMENT_URL
+              value: http://{{ include "guance-observability-demo.fullname" $ }}-payment-service:8082
+            - name: ORDER_URL
+              value: http://{{ include "guance-observability-demo.fullname" $ }}-order-service:8080
+            - name: DEMO_CONTROL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "existingSecret is required" $.Values.existingSecret }}
+                  key: {{ $.Values.secretKeys.controlToken }}
+            - name: KUBERNETES_LOG_READER_ENABLED
+              value: {{ $.Values.logViewer.enabled | quote }}
+            - name: RUM_ENABLED
+              value: {{ $.Values.rum.enabled | quote }}
+            - name: RUM_APPLICATION_ID
+              value: {{ if $.Values.rum.enabled }}{{ required "rum.applicationId is required when rum.enabled=true" $.Values.rum.applicationId | quote }}{{ else }}""{{ end }}
+            - name: RUM_SERVICE
+              value: {{ $.Values.rum.service | quote }}
+            - name: DATAKIT_RUM_URL
+              value: http://$(DD_AGENT_HOST):9529
+            - name: GUANCE_CONSOLE_URL
+              value: {{ $.Values.guanceConsole.url | quote }}
+            - name: GUANCE_WORKSPACE_ID
+              value: {{ $.Values.guanceConsole.workspaceId | quote }}
+            - name: DEMO_LOG_DIRECTORY
+              value: /var/log/guance-observability-demo
+            {{- else if eq $service.name "inventory-service" }}
+            - name: REDIS_HOST
+              value: {{ include "guance-observability-demo.fullname" $ }}-redis
+            - name: REDIS_PORT
+              value: "6379"
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml $.Values.resources.java | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

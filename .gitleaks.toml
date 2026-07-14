@@ -1,0 +1,29 @@
+title = "guance-observability-demo secret rules"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "guance-client-token"
+description = "Guance client token"
+regex = '''tkn_[A-Za-z0-9]{16,}'''
+keywords = ["tkn_"]
+
+[[rules]]
+id = "guance-workspace-id"
+description = "Guance workspace identifier must not be committed with a real value"
+regex = '''wksp_[A-Za-z0-9]{16,}'''
+keywords = ["wksp_"]
+
+[[rules]]
+id = "dataway-token-url"
+description = "DataWay URL containing a token"
+regex = '''https?://[^\s]+[?&]token=[A-Za-z0-9._-]{12,}'''
+keywords = ["token="]
+
+[allowlist]
+description = "Rule definitions and documented placeholders"
+paths = [
+  '''\.gitleaks\.toml$''',
+  '''scripts/secret-scan\.sh$''',
+]

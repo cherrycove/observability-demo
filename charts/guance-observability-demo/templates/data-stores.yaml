@@ -1,0 +1,170 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "guance-observability-demo.fullname" . }}-mysql
+  labels:
+    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mysql
+  annotations:
+    demo.guance.com/data-policy: ephemeral-demo-data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "guance-observability-demo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mysql
+  template:
+    metadata:
+      labels:
+        {{- include "guance-observability-demo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mysql
+        project: {{ required "observability.project is required" .Values.observability.project | quote }}
+      annotations:
+        demo.guance.com/data-policy: ephemeral-demo-data
+    spec:
+      serviceAccountName: {{ include "guance-observability-demo.fullname" . }}-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mysql
+          image: {{ .Values.mysql.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: MYSQL_DATABASE
+              value: {{ .Values.mysql.database | quote }}
+            - name: MYSQL_USER
+              value: {{ .Values.mysql.user | quote }}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "existingSecret is required" .Values.existingSecret }}
+                  key: {{ .Values.secretKeys.mysqlPassword }}
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "existingSecret is required" .Values.existingSecret }}
+                  key: {{ .Values.secretKeys.mysqlRootPassword }}
+          ports:
+            - name: mysql
+              containerPort: 3306
+          readinessProbe:
+            exec:
+              command: ["sh", "-ec", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.mysql | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "guance-observability-demo.fullname" . }}-mysql
+  labels:
+    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mysql
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "guance-observability-demo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "guance-observability-demo.fullname" . }}-redis
+  labels:
+    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+  annotations:
+    demo.guance.com/data-policy: ephemeral-demo-data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "guance-observability-demo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "guance-observability-demo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+        project: {{ required "observability.project is required" .Values.observability.project | quote }}
+      annotations:
+        demo.guance.com/data-policy: ephemeral-demo-data
+    spec:
+      serviceAccountName: {{ include "guance-observability-demo.fullname" . }}-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          args: ["redis-server", "--save", "", "--appendonly", "no"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.redis | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "guance-observability-demo.fullname" . }}-redis
+  labels:
+    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "guance-observability-demo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

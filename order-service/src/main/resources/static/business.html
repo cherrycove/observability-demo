@@ -1,0 +1,2795 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>商城 Demo 与故障注入 Demo</title>
+  <link rel="icon" href="data:," />
+  <script src="assets/selfheal-i18n.js?v=20260714-workbench-v19"></script>
+  <script>
+    (() => {
+      try {
+        document.documentElement.dataset.leftCollapsed = localStorage.getItem('mall-workbench-left-collapsed') === 'true' ? 'true' : 'false';
+        document.documentElement.dataset.rightCollapsed = localStorage.getItem('mall-workbench-right-collapsed') === 'true' ? 'true' : 'false';
+      } catch (_) {
+        document.documentElement.dataset.leftCollapsed = 'false';
+        document.documentElement.dataset.rightCollapsed = 'false';
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      --gc-primary: #1770e6;
+      --gc-primary-hover: #4d7ee6;
+      --gc-primary-soft: #e8f2ff;
+      --gc-success: #00a870;
+      --gc-warning: #f5a623;
+      --gc-danger: #dc3545;
+      --gc-page: #f5f7fb;
+      --gc-surface: #ffffff;
+      --gc-surface-soft: #f8fafc;
+      --gc-border: #dce3ee;
+      --gc-border-strong: #b9c6d8;
+      --gc-text: #1f2d3d;
+      --gc-muted: #65758b;
+      --gc-ink: #101828;
+      --gc-shadow: 0 18px 48px rgba(16, 24, 40, .12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-height: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--gc-text);
+      background:
+        linear-gradient(180deg, #fbfdff 0%, var(--gc-page) 48%, #edf3fb 100%);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select { font: inherit; }
+
+    button {
+      min-height: 40px;
+      padding: 9px 13px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--gc-primary);
+      cursor: pointer;
+      font-weight: 800;
+      transition: transform .14s ease, filter .14s ease, box-shadow .14s ease;
+    }
+
+    button:hover {
+      filter: brightness(.98);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(23, 112, 230, .18);
+    }
+
+    button:disabled {
+      opacity: .58;
+      cursor: wait;
+      transform: none;
+      box-shadow: none;
+    }
+
+    button.secondary {
+      color: var(--gc-text);
+      background: #fff;
+      border-color: var(--gc-border);
+    }
+
+    button.warn { background: var(--gc-warning); color: #3d2500; }
+    button.danger { background: var(--gc-danger); }
+
+    a { color: inherit; text-decoration: none; }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 1fr;
+    }
+
+    .language-toggle {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--gc-border);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .language-toggle button {
+      min-height: 30px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--gc-muted);
+      box-shadow: none;
+      font-size: 12px;
+    }
+
+    .language-toggle button.active {
+      color: #fff;
+      background: #fff;
+      background: var(--gc-primary);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      padding: 4px 9px;
+      border: 1px solid var(--gc-border);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--gc-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--gc-success);
+    }
+
+    .dot.warn { background: var(--gc-warning); }
+    .dot.bad { background: var(--gc-danger); }
+
+    .page {
+      width: 100%;
+      height: 100vh;
+      margin: 0 auto;
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: clamp(300px, 26vw, 500px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      min-height: calc(100vh - 28px);
+    }
+
+    .shop-lane {
+      position: sticky;
+      top: 14px;
+      display: grid;
+      justify-items: center;
+      height: calc(100vh - 28px);
+    }
+
+    .phone-shell {
+      position: relative;
+      height: 100%;
+      width: auto;
+      max-width: 100%;
+      aspect-ratio: 393 / 852;
+      padding: 2px;
+      border: 1px solid #111827;
+      border-radius: 32px;
+      background:
+        linear-gradient(145deg, #2b3344 0%, #0b1120 48%, #050816 100%);
+      box-shadow:
+        0 26px 60px rgba(15, 23, 42, .24),
+        inset 0 0 0 1px rgba(255, 255, 255, .08);
+    }
+
+    .phone-screen {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      border: 0;
+      border-radius: 29px;
+      background:
+        radial-gradient(circle at 8% 3%, rgba(255, 122, 0, .18), transparent 35%),
+        radial-gradient(circle at 96% 2%, rgba(215, 48, 255, .13), transparent 32%),
+        linear-gradient(180deg, #fff9f4 0%, #fff4fb 46%, #f8f7ff 100%);
+      box-shadow: none;
+    }
+
+    .phone-camera {
+      position: absolute;
+      left: 50%;
+      top: 6px;
+      z-index: 5;
+      width: 10px;
+      height: 10px;
+      transform: translateX(-50%);
+      border: 2px solid #101827;
+      border-radius: 999px;
+      background: #020617;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, .1),
+        inset 0 0 0 2px #111827;
+    }
+
+    .phone-statusbar {
+      position: relative;
+      z-index: 3;
+      height: 29px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 21px;
+      color: #172033;
+      font-size: 12px;
+      font-weight: 900;
+      background: transparent;
+    }
+
+    .phone-icons {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .signal {
+      position: relative;
+      width: 18px;
+      height: 12px;
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .signal i {
+      width: 3px;
+      border-radius: 999px;
+      background: #172033;
+    }
+
+    .signal i:nth-child(1) { height: 4px; }
+    .signal i:nth-child(2) { height: 7px; }
+    .signal i:nth-child(3) { height: 10px; }
+
+    .wifi {
+      width: 20px;
+      height: 14px;
+      display: block;
+      color: #172033;
+      fill: currentColor;
+    }
+
+    .battery {
+      position: relative;
+      width: 24px;
+      height: 12px;
+      display: inline-block;
+      border: 2px solid #172033;
+      border-radius: 4px;
+    }
+
+    .battery::before {
+      content: "";
+      position: absolute;
+      right: -5px;
+      top: 3px;
+      width: 3px;
+      height: 4px;
+      border-radius: 0 2px 2px 0;
+      background: #172033;
+    }
+
+    .battery::after {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      width: 14px;
+      height: 4px;
+      border-radius: 2px;
+      background: #172033;
+    }
+
+    .phone-frame-wrap {
+      position: relative;
+      height: calc(100% - 43px);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(255, 122, 0, .18), transparent 35%),
+        radial-gradient(circle at 96% 0%, rgba(215, 48, 255, .13), transparent 32%),
+        linear-gradient(180deg, #fff9f4 0%, #fff4fb 46%, #f8f7ff 100%);
+    }
+
+    .shop-frame {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 0;
+      background: #f7faff;
+    }
+
+    .android-nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 3;
+      height: 14px;
+      display: grid;
+      place-items: center;
+      background: transparent;
+    }
+
+    .android-nav span {
+      width: 68px;
+      height: 3px;
+      border-radius: 999px;
+      background: #111827;
+      opacity: .9;
+    }
+
+    .control-lane {
+      height: calc(100vh - 28px);
+      overflow-y: auto;
+      align-content: start;
+      display: grid;
+      gap: 14px;
+      padding-right: 4px;
+    }
+
+    .control-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      min-height: 40px;
+    }
+
+    .control-lane::-webkit-scrollbar { width: 10px; }
+
+    .control-lane::-webkit-scrollbar-thumb {
+      border: 2px solid #eef4fb;
+      border-radius: 999px;
+      background: #c7d2e0;
+    }
+
+    .panel,
+    .metric {
+      border: 1px solid var(--gc-border);
+      border-radius: 8px;
+      background: var(--gc-surface);
+      box-shadow: 0 10px 26px rgba(16, 24, 40, .06);
+    }
+
+    .panel {
+      padding: 16px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel h2 {
+      margin: 0;
+      color: var(--gc-text);
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .panel-note {
+      margin: 0;
+      color: var(--gc-muted);
+      font-size: 12px;
+      line-height: 1.5;
+      text-align: right;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      min-height: 76px;
+      padding: 12px;
+      box-shadow: none;
+      background: var(--gc-surface-soft);
+    }
+
+    .metric label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--gc-muted);
+      font-size: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--gc-text);
+      font-size: 14px;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--gc-muted);
+      font-size: 12px;
+    }
+
+    .field select,
+    .field input {
+      width: 100%;
+      height: 38px;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      color: var(--gc-text);
+      background: #fff;
+      outline: none;
+    }
+
+    .field select:focus,
+    .field input:focus {
+      border-color: rgba(23, 112, 230, .75);
+      box-shadow: 0 0 0 3px rgba(23, 112, 230, .12);
+    }
+
+    .fault-config {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .tab-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field-label {
+      color: var(--gc-muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tab-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tab-button {
+      min-height: 34px;
+      padding: 7px 12px;
+      border-color: var(--gc-border);
+      border-radius: 999px;
+      color: var(--gc-text);
+      background: #fff;
+      box-shadow: none;
+      font-size: 12px;
+      font-weight: 900;
+      text-align: left;
+    }
+
+    .tab-button:hover {
+      transform: none;
+      box-shadow: 0 8px 18px rgba(16, 24, 40, .08);
+    }
+
+    .tab-button[aria-selected="true"] {
+      border-color: var(--gc-primary);
+      color: #fff;
+      background: var(--gc-primary);
+      box-shadow: 0 10px 22px rgba(23, 112, 230, .2);
+    }
+
+    .scenario-tab-list .tab-button {
+      flex: 1 1 220px;
+      justify-content: flex-start;
+      border-radius: 8px;
+      white-space: normal;
+      line-height: 1.35;
+    }
+
+    .layer-tab-list .tab-button {
+      min-width: 0;
+      flex: 1 1 90px;
+      justify-content: center;
+      border-radius: 8px;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.25;
+    }
+
+    .tab-button:disabled {
+      cursor: wait;
+      opacity: .58;
+      transform: none;
+    }
+
+    .fault-detail,
+    .active-fault-card,
+    .trace-link-card {
+      border: 1px solid var(--gc-border);
+      border-radius: 8px;
+      background: var(--gc-surface-soft);
+    }
+
+    .fault-detail {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .fault-detail-head,
+    .active-fault-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .fault-detail strong,
+    .active-fault-name {
+      color: var(--gc-ink);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .fault-detail span,
+    .active-fault-detail {
+      color: var(--gc-muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .fault-detail code,
+    .active-fault-card code {
+      display: inline-flex;
+      max-width: 100%;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: #0f3b6d;
+      background: var(--gc-primary-soft);
+      font-family: Consolas, Menlo, monospace;
+      font-size: 11px;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .fault-meta,
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fault-observation {
+      padding: 10px;
+      border: 1px dashed var(--gc-border-strong);
+      border-radius: 8px;
+      color: var(--gc-muted);
+      background: #fff;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .active-fault-card {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 12px;
+    }
+
+    .active-fault-card.active {
+      border-color: #fecaca;
+      background: #fff5f5;
+    }
+
+    .active-fault-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--gc-muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .trace-link-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .trace-link-card h2 {
+      margin: 0 0 5px;
+      color: var(--gc-ink);
+      font-size: 16px;
+    }
+
+    .trace-link-card p {
+      margin: 0;
+      color: var(--gc-muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .trace-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 10px 15px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--gc-primary);
+      font-size: 13px;
+      font-weight: 900;
+      text-decoration: none;
+      white-space: nowrap;
+      box-shadow: 0 10px 22px rgba(23, 112, 230, .18);
+    }
+
+    .trace-link.disabled {
+      pointer-events: none;
+      color: var(--gc-muted);
+      background: #eef4ff;
+      box-shadow: none;
+    }
+
+    @media (max-width: 1260px) {
+      .demo-grid,
+      .control-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .shop-lane {
+        position: static;
+        height: 820px;
+      }
+
+      .phone-shell {
+        width: auto;
+        max-width: min(100%, 378px);
+      }
+
+      .control-lane {
+        height: auto;
+        overflow: visible;
+        padding-right: 0;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .control-toolbar { justify-content: flex-start; }
+      .page {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+        padding: 12px;
+      }
+      .phone-shell {
+        max-width: min(100%, 350px);
+        border-radius: 30px;
+      }
+      .shop-lane { height: 760px; }
+      .phone-screen { border-radius: 27px; }
+      .fault-config { grid-template-columns: 1fr; }
+      .panel-note { text-align: left; }
+      .trace-link-card { grid-template-columns: 1fr; }
+      .trace-link { width: 100%; }
+    }
+  </style>
+  <style id="workbench-v2">
+    html,
+    body { height: 100%; }
+
+    body { overflow: hidden; }
+
+    .app-shell {
+      height: 100vh;
+      min-height: 0;
+      grid-template-rows: 56px minmax(0, 1fr);
+    }
+
+    .workbench-header {
+      position: relative;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-width: 0;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--gc-border);
+      background: rgba(255, 255, 255, .96);
+      box-shadow: 0 4px 16px rgba(16, 24, 40, .05);
+      backdrop-filter: blur(12px);
+    }
+
+    .workbench-brand,
+    .workbench-actions,
+    .sidebar-title,
+    .scene-status,
+    .simulator-title,
+    .preview-toggle {
+      display: flex;
+      align-items: center;
+    }
+
+    .workbench-brand { min-width: 0; gap: 0; }
+
+    .workbench-mark,
+    .scene-mark {
+      position: relative;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #fff;
+      background: linear-gradient(145deg, #ff7a00, #ff3856 58%, #d730ff);
+      box-shadow: 0 8px 18px rgba(255, 56, 86, .2);
+    }
+
+    .service-icon {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 9px;
+      color: #fff;
+      background: linear-gradient(145deg, #ff7a00, #ff3856 58%, #d730ff);
+      box-shadow: 0 8px 18px rgba(255, 56, 86, .2);
+    }
+
+    .service-icon svg { width: 100%; height: 100%; display: block; }
+    .service-icon path { fill: currentColor; }
+
+    .workbench-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+    }
+
+    .workbench-mark::before,
+    .scene-mark::before {
+      content: "";
+      width: 18px;
+      height: 14px;
+      border: 2px solid currentColor;
+      border-top: 0;
+      border-radius: 2px 2px 5px 5px;
+      box-shadow: inset 7px 0 0 -5px currentColor;
+    }
+
+    .workbench-brand-copy { min-width: 0; }
+
+    .workbench-brand-copy strong {
+      display: block;
+      overflow: hidden;
+      color: var(--gc-ink);
+      font-size: 17px;
+      line-height: 1.1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .workbench-brand-copy span {
+      display: block;
+      margin-top: 3px;
+      color: var(--gc-muted);
+      font-size: 11px;
+    }
+
+    .workbench-actions { gap: 8px; }
+
+    .mobile-drawer-button {
+      display: none;
+      width: 34px;
+      min-height: 34px;
+      padding: 0;
+      color: var(--gc-text);
+      background: #fff;
+      border-color: var(--gc-border);
+      box-shadow: none;
+      font-size: 0;
+    }
+
+    #mobileScenesBtn::before {
+      content: "";
+      width: 15px;
+      height: 12px;
+      border: 2px solid currentColor;
+      border-top: 0;
+      border-radius: 2px 2px 4px 4px;
+      box-shadow: inset 6px 0 0 -4px currentColor;
+    }
+
+    #mobileFaultsBtn::before { content: "!"; font-size: 16px; font-weight: 900; line-height: 1; }
+
+    .workbench-main {
+      min-height: 0;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    .workbench-grid {
+      --left-column: clamp(220px, 16vw, 260px);
+      --right-column: clamp(330px, 24vw, 380px);
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: var(--left-column) minmax(0, 1fr) var(--right-column);
+      gap: 10px;
+      transition: grid-template-columns .2s ease;
+    }
+
+    html[data-left-collapsed="true"] .workbench-grid { --left-column: 48px; }
+    html[data-right-collapsed="true"] .workbench-grid { --right-column: 48px; }
+
+    .workspace-pane {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid var(--gc-border);
+      border-radius: 8px;
+      background: var(--gc-surface);
+      box-shadow: 0 10px 28px rgba(16, 24, 40, .06);
+    }
+
+    .sidebar-head,
+    .simulator-head {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 11px;
+      border-bottom: 1px solid var(--gc-border);
+      background: #fff;
+    }
+
+    .sidebar-title { min-width: 0; gap: 8px; }
+
+    .sidebar-title strong,
+    .simulator-title strong {
+      color: var(--gc-ink);
+      font-size: 14px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .sidebar-title span,
+    .simulator-title span {
+      color: var(--gc-muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .sidebar-heading-copy,
+    .simulator-heading-copy {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .collapse-button {
+      position: relative;
+      width: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      padding: 0;
+      border-color: var(--gc-border);
+      color: var(--gc-text);
+      background: #fff;
+      box-shadow: none;
+    }
+
+    .collapse-button::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      display: block;
+      margin: auto;
+      border-top: 2px solid currentColor;
+      border-right: 2px solid currentColor;
+      transform: rotate(-135deg);
+      transition: transform .18s ease;
+    }
+
+    #rightCollapseBtn::before { transform: rotate(45deg); }
+    html[data-left-collapsed="true"] #leftCollapseBtn::before { transform: rotate(45deg); }
+    html[data-right-collapsed="true"] #rightCollapseBtn::before { transform: rotate(-135deg); }
+
+    .sidebar-content {
+      min-height: 0;
+      height: calc(100% - 52px);
+      overflow-y: auto;
+    }
+
+    .scene-sidebar { grid-column: 1; }
+
+    .scene-list {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .scene-item {
+      width: 100%;
+      min-height: 94px;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      padding: 11px;
+      border: 1px solid var(--gc-border);
+      border-radius: 8px;
+      color: var(--gc-text);
+      background: #fff;
+      text-align: left;
+      box-shadow: none;
+    }
+
+    .scene-item.active {
+      border-color: rgba(23, 112, 230, .55);
+      background: #f2f7ff;
+      box-shadow: 0 8px 20px rgba(23, 112, 230, .1);
+    }
+
+    .scene-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+    }
+
+    .scene-copy { min-width: 0; display: grid; gap: 5px; }
+    .scene-copy strong { color: var(--gc-ink); font-size: 13px; }
+    .scene-copy p { margin: 0; color: var(--gc-muted); font-size: 11px; line-height: 1.45; }
+    .scene-status { gap: 5px; color: var(--gc-success); font-size: 10px; font-weight: 800; }
+    .scene-status .dot { width: 6px; height: 6px; }
+
+    .sidebar-rail {
+      display: none;
+      height: calc(100% - 52px);
+      align-content: start;
+      justify-items: center;
+      gap: 8px;
+      padding: 9px 4px;
+    }
+
+    .rail-button {
+      position: relative;
+      width: 30px;
+      min-height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border-color: var(--gc-border);
+      color: var(--gc-text);
+      background: #fff;
+      box-shadow: none;
+    }
+
+    .rail-button.active { color: #fff; background: var(--gc-primary); }
+    .rail-button .dot { position: absolute; right: 2px; top: 2px; width: 6px; height: 6px; }
+    .rail-glyph { font-size: 12px; font-weight: 900; line-height: 1; }
+
+    .sidebar-rail .scene-mark,
+    .sidebar-rail .service-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      box-shadow: 0 5px 12px rgba(255, 56, 86, .16);
+    }
+
+    .sidebar-rail .scene-mark::before { width: 13px; height: 10px; border-width: 1.5px; }
+
+    #bookstoreRailBtn,
+    #bookstoreRailBtn.active {
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .fault-console-mark {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 7px;
+      color: #fff;
+      background: var(--gc-primary);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .fault-console-mark::before { content: "!"; }
+
+    html[data-left-collapsed="true"] .scene-sidebar .sidebar-heading-copy,
+    html[data-right-collapsed="true"] .control-sidebar .sidebar-heading-copy { display: none; }
+
+    html[data-left-collapsed="true"] .scene-sidebar .sidebar-title,
+    html[data-right-collapsed="true"] .control-sidebar .sidebar-title { display: none; }
+
+    html[data-left-collapsed="true"] .scene-sidebar .sidebar-head,
+    html[data-right-collapsed="true"] .control-sidebar .sidebar-head { justify-content: center; padding-inline: 6px; }
+
+    html[data-left-collapsed="true"] .scene-sidebar .sidebar-content,
+    html[data-right-collapsed="true"] .control-sidebar .sidebar-content { display: none; }
+
+    html[data-left-collapsed="true"] .scene-sidebar .sidebar-rail,
+    html[data-right-collapsed="true"] .control-sidebar .sidebar-rail { display: grid; }
+
+    .simulator-pane {
+      grid-column: 2;
+      display: grid;
+      grid-template-rows: 52px minmax(0, 1fr);
+    }
+
+    .simulator-title { min-width: 0; gap: 9px; }
+    .simulator-scene-mark { width: 28px; height: 28px; border-radius: 7px; }
+
+    .preview-toggle {
+      flex: 0 0 auto;
+      gap: 3px;
+      padding: 3px;
+      border: 1px solid var(--gc-border);
+      border-radius: 8px;
+      background: #f7f9fc;
+    }
+
+    .preview-toggle button {
+      min-height: 32px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: var(--gc-muted);
+      background: transparent;
+      box-shadow: none;
+      font-size: 11px;
+    }
+
+    .preview-toggle button.active {
+      color: #fff;
+      background: var(--gc-primary);
+    }
+
+    .preview-stage {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      place-items: stretch;
+      gap: 10px;
+      padding: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .preview-stage[data-view="web"] {
+      grid-template-rows: minmax(0, 1fr) clamp(160px, 21vh, 190px);
+    }
+
+    .preview-shell.phone-shell {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      max-width: none;
+      transition: width .2s ease, height .2s ease, border-radius .2s ease;
+    }
+
+    .preview-stage[data-view="web"] .preview-shell.phone-shell {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: auto;
+      display: grid;
+      grid-template-rows: 44px minmax(0, 1fr);
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: none;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .preview-browser-chrome {
+      min-width: 0;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-bottom: 1px solid #aebdce;
+      color: #65758b;
+      background: #edf2f7;
+    }
+
+    .preview-stage[data-view="web"] .preview-browser-chrome { display: flex; }
+
+    .preview-browser-lights {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 5px;
+    }
+
+    .preview-browser-lights i {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #ff5f57;
+    }
+
+    .preview-browser-lights i:nth-child(2) { background: #febc2e; }
+    .preview-browser-lights i:nth-child(3) { background: #28c840; }
+
+    .preview-browser-tools {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: 2px;
+    }
+
+    .preview-browser-tool {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      color: #65758b;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .preview-browser-tool.muted { color: #aab4c2; }
+
+    .preview-browser-address {
+      min-width: 0;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      flex: 1;
+      gap: 7px;
+      padding: 0 10px;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      color: var(--gc-muted);
+      background: #fff;
+      font-size: 11px;
+    }
+
+    .preview-browser-address::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--gc-success);
+    }
+
+    .preview-browser-address span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .preview-stage[data-view="web"] .preview-shell.phone-shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      border: 2px solid #91a2b8;
+      border-radius: 8px;
+      pointer-events: none;
+    }
+
+    .preview-stage[data-view="web"] .phone-screen { min-height: 0; border: 0; border-radius: 6px; overflow: hidden; background: #fff; box-shadow: none; }
+    .preview-stage[data-view="web"] .phone-camera,
+    .preview-stage[data-view="web"] .phone-statusbar,
+    .preview-stage[data-view="web"] .android-nav { display: none; }
+    .preview-stage[data-view="web"] .phone-frame-wrap { height: 100%; overflow: hidden; background: #fff; }
+
+    .preview-stage[data-view="mobile"] {
+      grid-template-columns: minmax(280px, 390px) minmax(280px, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      place-items: stretch;
+      justify-content: stretch;
+      padding-left: max(10px, calc((100% - 790px) / 2));
+    }
+
+    .preview-stage[data-view="mobile"] .preview-shell.phone-shell {
+      width: auto;
+      max-width: 100%;
+      height: 100%;
+      justify-self: center;
+    }
+
+    .fault-history {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid #cbd6e4;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(16, 24, 40, .08);
+    }
+
+    .fault-history-head {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--gc-border);
+    }
+
+    .fault-history-head h2 {
+      margin: 0;
+      color: var(--gc-ink);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    .fault-history-count {
+      color: var(--gc-muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .fault-history-list {
+      min-height: 0;
+      overflow: auto;
+      padding: 0 12px;
+    }
+
+    .fault-history-empty {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      color: var(--gc-muted);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .fault-record {
+      display: grid;
+      grid-template-columns: 12px minmax(0, 1fr);
+      gap: 9px;
+      padding: 9px 0;
+      border-bottom: 1px solid #edf1f6;
+    }
+
+    .fault-record:last-child { border-bottom: 0; }
+
+    .fault-record-dot {
+      width: 9px;
+      height: 9px;
+      margin-top: 4px;
+      border: 2px solid #bfdbfe;
+      border-radius: 999px;
+      background: var(--gc-primary);
+    }
+
+    .fault-record[data-status="active"] .fault-record-dot { border-color: #bbf7d0; background: var(--gc-success); }
+    .fault-record[data-status="closed"] .fault-record-dot { border-color: #dbe4ee; background: #7b8ba1; }
+    .fault-record[data-status="failed"] .fault-record-dot { border-color: #fecaca; background: var(--gc-danger); }
+
+    .fault-record-copy { min-width: 0; display: grid; gap: 4px; }
+
+    .fault-record-title-row,
+    .fault-record-meta {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px 10px;
+    }
+
+    .fault-record-title-row { justify-content: space-between; }
+
+    .fault-record-title {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--gc-ink);
+      font-size: 11px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .fault-record-status {
+      flex: 0 0 auto;
+      padding: 2px 6px;
+      border-radius: 999px;
+      color: #0f4c81;
+      background: #eaf4ff;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .fault-record[data-status="active"] .fault-record-status { color: #08724f; background: #e8f8f1; }
+    .fault-record[data-status="closed"] .fault-record-status { color: #526174; background: #eef2f6; }
+    .fault-record[data-status="failed"] .fault-record-status { color: #a5222e; background: #fff0f1; }
+
+    .fault-record-meta {
+      color: var(--gc-muted);
+      font-size: 9px;
+      line-height: 1.35;
+    }
+
+    .fault-record-meta span + span::before {
+      content: "·";
+      margin-right: 10px;
+      color: #b3bfcd;
+    }
+
+    .preview-stage[data-view="web"] .fault-history { width: 100%; }
+    .preview-stage[data-view="mobile"] .fault-history { width: 100%; height: 100%; }
+
+    .control-sidebar.control-lane {
+      grid-column: 3;
+      height: 100%;
+      display: block;
+      padding: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .control-sidebar .sidebar-content {
+      padding: 0;
+      background: #fff;
+    }
+
+    .control-sidebar .panel,
+    .control-sidebar .trace-link-card {
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      background: #fff;
+    }
+
+    .control-sidebar .panel { padding: 14px 12px; }
+    .control-sidebar .panel-head { gap: 8px; }
+    .control-sidebar .panel-head h2 { font-size: 14px; }
+    .control-sidebar .panel-note { font-size: 10px; }
+    .control-sidebar .tab-button { padding: 7px 8px; font-size: 10px; }
+    .control-sidebar .fault-config { gap: 10px; }
+    .control-sidebar .fault-detail {
+      padding: 12px 0 0;
+      border: 0;
+      border-top: 1px solid var(--gc-border);
+      border-radius: 0;
+      background: #fff;
+    }
+    .control-sidebar .fault-detail-head { align-items: flex-start; }
+    .control-sidebar .fault-detail-head strong { font-size: 12px; }
+    .control-sidebar .fault-detail > span,
+    .control-sidebar .fault-observation,
+    .control-sidebar .active-fault-detail { font-size: 10px; line-height: 1.45; }
+    .control-sidebar .fault-meta { gap: 4px; }
+    .control-sidebar .fault-meta code { font-size: 9px; }
+    .control-sidebar .fault-observation {
+      padding: 9px 0 0;
+      border: 0;
+      border-top: 1px dashed var(--gc-border);
+      border-radius: 0;
+      background: #fff;
+    }
+    .control-sidebar .active-fault-card,
+    .control-sidebar .active-fault-card.active {
+      margin-top: 12px;
+      padding: 12px 0 0;
+      border: 0;
+      border-top: 1px solid var(--gc-border);
+      border-radius: 0;
+      background: #fff;
+    }
+    .control-sidebar .active-fault-name { font-size: 12px; }
+    .control-sidebar .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .control-sidebar .button-row button { min-height: 38px; padding: 8px; font-size: 11px; }
+    .control-sidebar .trace-link-card {
+      margin-top: 0;
+      padding: 14px 12px;
+      grid-template-columns: 1fr;
+      gap: 9px;
+      border-top: 1px solid var(--gc-border);
+    }
+    .control-sidebar .trace-link-card h2 { font-size: 13px; }
+    .control-sidebar .trace-link-card p { font-size: 10px; }
+    .control-sidebar .trace-link { width: 100%; min-height: 36px; padding: 8px; font-size: 11px; }
+
+    .drawer-backdrop {
+      display: none;
+      position: fixed;
+      inset: 56px 0 0;
+      z-index: 45;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: rgba(15, 23, 42, .34);
+      box-shadow: none;
+      transform: none;
+    }
+
+    .drawer-backdrop:hover { filter: none; transform: none; box-shadow: none; }
+
+    @media (max-width: 1199px) {
+      .workbench-grid { --left-column: 48px; --right-column: 48px; }
+      .scene-sidebar .sidebar-heading-copy,
+      .control-sidebar .sidebar-heading-copy,
+      .scene-sidebar .sidebar-content,
+      .control-sidebar .sidebar-content { display: none; }
+      .scene-sidebar .sidebar-title,
+      .control-sidebar .sidebar-title { display: none; }
+      .scene-sidebar .sidebar-head,
+      .control-sidebar .sidebar-head { justify-content: center; padding-inline: 6px; }
+      .scene-sidebar .sidebar-rail,
+      .control-sidebar .sidebar-rail { display: grid; }
+      #leftCollapseBtn::before { transform: rotate(45deg); }
+      #rightCollapseBtn::before { transform: rotate(-135deg); }
+      body[data-left-drawer-open="true"] #leftCollapseBtn::before { transform: rotate(-135deg); }
+      body[data-right-drawer-open="true"] #rightCollapseBtn::before { transform: rotate(45deg); }
+      .scene-sidebar,
+      .control-sidebar { z-index: 46; }
+      body[data-left-drawer-open="true"] .scene-sidebar,
+      body[data-right-drawer-open="true"] .control-sidebar {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: min(340px, calc(100vw - 90px));
+      }
+      body[data-left-drawer-open="true"] .scene-sidebar { left: 0; }
+      body[data-right-drawer-open="true"] .control-sidebar { right: 0; }
+      body[data-left-drawer-open="true"] .scene-sidebar .sidebar-heading-copy,
+      body[data-right-drawer-open="true"] .control-sidebar .sidebar-heading-copy { display: grid; }
+      body[data-left-drawer-open="true"] .scene-sidebar .sidebar-title,
+      body[data-right-drawer-open="true"] .control-sidebar .sidebar-title { display: flex; }
+      body[data-left-drawer-open="true"] .scene-sidebar .sidebar-content,
+      body[data-right-drawer-open="true"] .control-sidebar .sidebar-content { display: block; }
+      body[data-left-drawer-open="true"] .scene-sidebar .sidebar-rail,
+      body[data-right-drawer-open="true"] .control-sidebar .sidebar-rail { display: none; }
+      body[data-left-drawer-open="true"] .scene-sidebar .sidebar-head,
+      body[data-right-drawer-open="true"] .control-sidebar .sidebar-head { justify-content: space-between; padding-inline: 11px; }
+      body[data-left-drawer-open="true"] .drawer-backdrop,
+      body[data-right-drawer-open="true"] .drawer-backdrop { display: block; }
+    }
+
+    @media (max-width: 819px) {
+      .workbench-header { padding-inline: 10px; }
+      .workbench-brand-copy span { display: none; }
+      .workbench-brand-copy strong { max-width: 48vw; font-size: 14px; }
+      .mobile-drawer-button { display: grid; place-items: center; }
+      .language-toggle button { padding-inline: 7px; }
+      .workbench-main { padding: 8px; }
+      .workbench-grid { display: block; }
+      .simulator-pane { width: 100%; height: 100%; }
+      .scene-sidebar,
+      .control-sidebar.control-lane {
+        position: fixed;
+        top: 56px;
+        bottom: 0;
+        z-index: 55;
+        width: min(360px, calc(100vw - 36px));
+        height: auto;
+        transform: translateX(-110%);
+        transition: transform .2s ease;
+      }
+      .scene-sidebar { left: 0; }
+      .control-sidebar.control-lane { right: 0; transform: translateX(110%); }
+      body[data-left-drawer-open="true"] .scene-sidebar,
+      body[data-right-drawer-open="true"] .control-sidebar.control-lane { transform: translateX(0); }
+      .drawer-backdrop { inset: 56px 0 0; z-index: 50; }
+      .simulator-head { min-height: 50px; padding: 7px 9px; }
+      .simulator-heading-copy span { display: none; }
+      .preview-toggle button { padding-inline: 8px; }
+      .preview-stage { padding: 6px; }
+    }
+
+    @media (max-width: 700px) {
+      .preview-stage[data-view="mobile"] {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) 170px;
+        padding-left: 6px;
+      }
+
+      .preview-stage[data-view="mobile"] .preview-shell.phone-shell {
+        max-height: 100%;
+        max-width: min(100%, 390px);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .workbench-brand-copy strong { max-width: 34vw; }
+      .preview-toggle button { min-height: 30px; padding: 5px 6px; font-size: 10px; }
+      .preview-stage[data-view="mobile"] .preview-shell.phone-shell { max-height: 100%; max-width: min(100%, 390px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="workbench-header">
+      <div class="workbench-brand">
+        <span class="workbench-brand-copy">
+          <strong data-i18n="workbenchTitle">故障演练工作台 Demo</strong>
+          <span data-i18n="workbenchBadge">业务场景演练</span>
+        </span>
+      </div>
+      <div class="workbench-actions">
+        <button class="mobile-drawer-button" id="mobileScenesBtn" type="button" aria-label="展开业务场景" data-i18n-aria-label="expandScenes" title="业务场景">S</button>
+        <button class="mobile-drawer-button" id="mobileFaultsBtn" type="button" aria-label="展开故障控制台" data-i18n-aria-label="expandFaults" title="故障控制台">F</button>
+        <div class="language-toggle" aria-label="语言" data-i18n-aria-label="commonLanguage">
+          <button type="button" data-lang="zh">中文</button>
+          <button type="button" data-lang="en">English</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="workbench-main">
+      <section class="workbench-grid" id="workbenchGrid">
+        <aside class="workspace-pane scene-sidebar" id="sceneSidebar" aria-label="业务场景" data-i18n-aria-label="businessScenes">
+          <div class="sidebar-head">
+            <div class="sidebar-title">
+              <span class="sidebar-heading-copy">
+                <strong data-i18n="businessScenes">业务场景</strong>
+                <span data-i18n="businessSceneCount">1 个场景</span>
+              </span>
+            </div>
+            <button class="collapse-button" id="leftCollapseBtn" type="button" aria-expanded="true" aria-label="收起业务场景" data-i18n-aria-label="collapseScenes"></button>
+          </div>
+          <div class="sidebar-content">
+            <div class="scene-list" id="businessSceneList"></div>
+          </div>
+          <div class="sidebar-rail" aria-hidden="false">
+            <button class="rail-button active" id="bookstoreRailBtn" type="button" title="图书商城">
+              <span class="service-icon service-icon-bookstore" aria-hidden="true">
+                <svg viewBox="0 0 40 40" focusable="false">
+                  <path d="M8.5 11.5c4.2 0 7.5 1.1 10.5 3.5v13.5c-3-2.3-6.3-3.5-10.5-3.5V11.5Zm23 0c-4.2 0-7.5 1.1-10.5 3.5v13.5c3-2.3 6.3-3.5 10.5-3.5V11.5Z"></path>
+                </svg>
+              </span>
+              <span class="dot" aria-hidden="true"></span>
+            </button>
+          </div>
+        </aside>
+
+        <section class="workspace-pane simulator-pane" aria-label="业务场景模拟器" data-i18n-aria-label="simulatorTitle">
+          <div class="simulator-head">
+            <div class="simulator-title">
+              <span class="simulator-heading-copy">
+                <strong data-i18n="simulatorTitle">业务场景模拟器</strong>
+                <span id="simulatorSceneName" data-i18n="sceneBookstoreDescription">图书商城</span>
+              </span>
+            </div>
+            <div class="preview-toggle" id="previewToggle" role="tablist" aria-label="预览模式">
+              <button type="button" role="tab" data-preview-mode="web" aria-selected="true" data-i18n="previewWeb">Web 预览</button>
+              <button type="button" role="tab" data-preview-mode="mobile" aria-selected="false" data-i18n="previewMobile">移动端</button>
+            </div>
+          </div>
+
+          <div class="preview-stage" id="previewStage" data-view="web">
+            <div class="preview-shell phone-shell" id="previewShell">
+              <div class="preview-browser-chrome" aria-label="demo.local/bookstore" data-i18n-aria-label="browserAddress">
+                <span class="preview-browser-lights" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="preview-browser-tools" aria-hidden="true">
+                  <span class="preview-browser-tool muted">‹</span>
+                  <span class="preview-browser-tool muted">›</span>
+                  <span class="preview-browser-tool">↻</span>
+                </span>
+                <span class="preview-browser-address"><span data-i18n="browserAddress">demo.local/bookstore</span></span>
+              </div>
+              <div class="phone-screen">
+                <div class="phone-camera" aria-hidden="true"></div>
+                <div class="phone-statusbar">
+                  <span>09:41</span>
+                  <span class="phone-icons" aria-hidden="true">
+                    <span class="signal"><i></i><i></i><i></i></span>
+                    <svg class="wifi" viewBox="0 5 24 15" aria-hidden="true">
+                      <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z"></path>
+                      <path d="M5 13l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"></path>
+                      <path d="M9 17l3 3l3-3c-1.65-1.66-4.34-1.66-6 0z"></path>
+                    </svg>
+                    <span class="battery"></span>
+                  </span>
+                </div>
+                <div class="phone-frame-wrap">
+                  <iframe id="shopFrame" class="shop-frame" title="商城 Demo" data-i18n-title="sceneBookstoreTitle"></iframe>
+                </div>
+                <div class="android-nav" aria-hidden="true"><span></span></div>
+              </div>
+            </div>
+            <section class="fault-history" aria-label="最近故障注入记录" data-i18n-aria-label="faultHistoryTitle">
+              <div class="fault-history-head">
+                <h2 data-i18n="faultHistoryTitle">最近故障注入记录</h2>
+                <span class="fault-history-count" id="faultHistoryCount">0 条记录</span>
+              </div>
+              <div class="fault-history-list" id="faultHistoryList" aria-live="polite"></div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="workspace-pane control-sidebar control-lane" id="controlSidebar" aria-label="故障注入控制台" data-i18n-aria-label="faultConsoleTitle">
+          <div class="sidebar-head">
+            <div class="sidebar-title">
+              <span class="sidebar-heading-copy">
+                <strong data-i18n="faultConsoleTitle">故障注入控制台</strong>
+                <span id="lastRefresh" data-i18n="parentLastRefresh">未刷新</span>
+              </span>
+            </div>
+            <button class="collapse-button" id="rightCollapseBtn" type="button" aria-expanded="true" aria-label="收起故障控制台" data-i18n-aria-label="collapseFaults"></button>
+          </div>
+          <div class="sidebar-content">
+            <section class="panel" aria-label="多层级故障配置" data-i18n-aria-label="parentFaultPanel">
+            <div class="panel-head">
+              <h2 data-i18n="parentFaultPanel">多层级故障配置</h2>
+            </div>
+            <div class="fault-config">
+              <div class="tab-field">
+                <span class="field-label" id="faultLayerLabel" data-i18n="parentLayerLabel">故障层级</span>
+                <div class="tab-list layer-tab-list" id="faultLayerTabs" role="tablist" aria-labelledby="faultLayerLabel"></div>
+              </div>
+              <div class="tab-field">
+                <span class="field-label" id="faultScenarioLabel" data-i18n="parentScenarioLabel">具体故障</span>
+                <div class="tab-list scenario-tab-list" id="faultScenarioTabs" role="tablist" aria-labelledby="faultScenarioLabel"></div>
+              </div>
+              <article class="fault-detail" id="faultDetail">
+                <div class="fault-detail-head">
+                  <strong id="faultDetailTitle" data-i18n="parentFaultLoadingTitle">故障目录加载中</strong>
+                  <code id="faultDetailKind">-</code>
+                </div>
+                <span id="faultDetailDesc" data-i18n="parentFaultLoadingDesc">正在读取可注入的故障场景。</span>
+                <div class="fault-meta">
+                  <code id="faultDetailService">service=-</code>
+                  <code id="faultDetailTarget">target=-</code>
+                  <code id="faultDetailTtl">ttl=-</code>
+                </div>
+                <div class="fault-observation" id="faultObservation" data-i18n="parentObservationLoading">观察信息加载中。</div>
+              </article>
+            </div>
+            <div class="active-fault-card" id="activeFaultCard">
+              <div class="active-fault-head">
+                <span class="active-fault-title"><span class="dot" id="activeFaultDot"></span><span data-i18n="parentActiveFault">当前注入异常</span></span>
+                <code id="activeFaultCode">none</code>
+              </div>
+              <div class="active-fault-name" id="activeFaultName" data-i18n="parentNoFault">未注入异常</div>
+              <div class="active-fault-detail" id="activeFaultDetail" data-i18n="parentNoFaultDetail">右侧选择故障并点击注入；一次只保留一个异常。</div>
+            </div>
+            <div class="button-row" style="margin-top: 12px;">
+              <button class="danger" id="faultBtn" type="button" data-i18n="parentInjectFault">注入选中故障</button>
+              <button class="warn" id="recoverBtn" type="button" data-i18n="parentRecoverFault">关闭全部故障</button>
+            </div>
+            </section>
+
+            <section class="trace-link-card" aria-label="链路详情" data-i18n-aria-label="parentTraceLinkPanel">
+              <div>
+                <h2 data-i18n="parentTraceLinkPanel">链路详情</h2>
+                <p id="traceLinkHint" data-i18n="parentTraceLinkPending">购买成功并匹配到 trace_id 后，可查看对应链路详情。</p>
+              </div>
+              <a id="guanceTraceLink" class="trace-link disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true" data-i18n="parentTraceLinkOpen">打开链路详情</a>
+            </section>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <button class="drawer-backdrop" id="drawerBackdrop" type="button" aria-label="关闭侧栏"></button>
+  </div>
+
+  <script>
+    const I18N = window.SelfhealI18n;
+    const apiPrefix = window.location.pathname.startsWith('/selfheal') ? '/selfheal' : '';
+    const STATUS_REFRESH_INTERVAL_MS = 60000;
+    const SHOP_BUILD_ID = '20260714-workbench-v19';
+    const LAYOUT_STORAGE_KEYS = {
+      left: 'mall-workbench-left-collapsed',
+      right: 'mall-workbench-right-collapsed',
+    };
+    const BUSINESS_SCENARIOS = [
+      {
+        id: 'bookstore',
+        titleKey: 'sceneBookstoreTitle',
+        descriptionKey: 'sceneBookstoreDescription',
+        frameUrl: 'shop.html',
+        supportedViews: ['web', 'mobile'],
+        statusKey: 'sceneRunning',
+      },
+    ];
+    const compactViewport = window.matchMedia('(max-width: 1199px)');
+    const initialUrl = new URL(window.location.href);
+    const CONTROL_TOKEN_STORAGE_KEY = 'guance-demo-control-token';
+    const FAULT_LAYER_GROUPS = [
+      { id: 'frontend', layers: ['frontend'], labelKey: 'layerFrontend' },
+      { id: 'backend', layers: ['service'], labelKey: 'layerBackend' },
+      { id: 'infrastructure', layers: ['dependency', 'jvm'], labelKey: 'layerInfrastructure' },
+    ];
+
+    function initialSceneId() {
+      const requested = initialUrl.searchParams.get('scene');
+      return BUSINESS_SCENARIOS.some((scene) => scene.id === requested) ? requested : BUSINESS_SCENARIOS[0].id;
+    }
+
+    function initialPreviewMode(sceneId) {
+      const scene = BUSINESS_SCENARIOS.find((item) => item.id === sceneId) || BUSINESS_SCENARIOS[0];
+      const requested = initialUrl.searchParams.get('view');
+      return scene.supportedViews.includes(requested) ? requested : scene.supportedViews[0];
+    }
+
+    const initialSelectedSceneId = initialSceneId();
+
+    const state = {
+      busy: false,
+      faults: [],
+      selectedFaultLayer: '',
+      selectedFaultId: '',
+      faultMode: 'none',
+      activeClientFault: null,
+      language: I18N.setLanguage(I18N.detectLanguage(), { updateUrl: true }),
+      shopReady: false,
+      lastTraceIds: [],
+      traceLookupSeq: 0,
+      faultRecords: [],
+      activeFaultRecordId: '',
+      countedFaultTriggerIds: [],
+      leftCollapsed: document.documentElement.dataset.leftCollapsed === 'true',
+      rightCollapsed: document.documentElement.dataset.rightCollapsed === 'true',
+      leftDrawerOpen: false,
+      rightDrawerOpen: false,
+      selectedSceneId: initialSelectedSceneId,
+      previewMode: initialPreviewMode(initialSelectedSceneId),
+      demoConfig: {},
+    };
+
+    const els = {
+      shopFrame: document.getElementById('shopFrame'),
+      previewStage: document.getElementById('previewStage'),
+      previewToggle: document.getElementById('previewToggle'),
+      simulatorSceneName: document.getElementById('simulatorSceneName'),
+      faultHistoryList: document.getElementById('faultHistoryList'),
+      faultHistoryCount: document.getElementById('faultHistoryCount'),
+      businessSceneList: document.getElementById('businessSceneList'),
+      bookstoreRailBtn: document.getElementById('bookstoreRailBtn'),
+      leftCollapseBtn: document.getElementById('leftCollapseBtn'),
+      rightCollapseBtn: document.getElementById('rightCollapseBtn'),
+      mobileScenesBtn: document.getElementById('mobileScenesBtn'),
+      mobileFaultsBtn: document.getElementById('mobileFaultsBtn'),
+      drawerBackdrop: document.getElementById('drawerBackdrop'),
+      openShopLink: document.getElementById('openShopLink'),
+      logs: document.getElementById('logs'),
+      rumStatus: document.getElementById('rumStatus'),
+      rumDot: document.getElementById('rumDot'),
+      lastRefresh: document.getElementById('lastRefresh'),
+      orderHealth: document.getElementById('orderHealth'),
+      inventoryHealth: document.getElementById('inventoryHealth'),
+      paymentHealth: document.getElementById('paymentHealth'),
+      traceLinkHint: document.getElementById('traceLinkHint'),
+      guanceTraceLink: document.getElementById('guanceTraceLink'),
+      faultLayerTabs: document.getElementById('faultLayerTabs'),
+      faultScenarioTabs: document.getElementById('faultScenarioTabs'),
+      faultDetailTitle: document.getElementById('faultDetailTitle'),
+      faultDetailKind: document.getElementById('faultDetailKind'),
+      faultDetailDesc: document.getElementById('faultDetailDesc'),
+      faultDetailService: document.getElementById('faultDetailService'),
+      faultDetailTarget: document.getElementById('faultDetailTarget'),
+      faultDetailTtl: document.getElementById('faultDetailTtl'),
+      faultObservation: document.getElementById('faultObservation'),
+      activeFaultCard: document.getElementById('activeFaultCard'),
+      activeFaultDot: document.getElementById('activeFaultDot'),
+      activeFaultCode: document.getElementById('activeFaultCode'),
+      activeFaultName: document.getElementById('activeFaultName'),
+      activeFaultDetail: document.getElementById('activeFaultDetail'),
+      faultBtn: document.getElementById('faultBtn'),
+      recoverBtn: document.getElementById('recoverBtn'),
+      refreshBtn: document.getElementById('refreshBtn'),
+    };
+
+    function t(key, params) {
+      return I18N.t(key, params, state.language);
+    }
+
+    function selectedBusinessScene() {
+      return BUSINESS_SCENARIOS.find((scene) => scene.id === state.selectedSceneId) || BUSINESS_SCENARIOS[0];
+    }
+
+    function shopUrl(language) {
+      const scene = selectedBusinessScene();
+      const url = new URL(scene.frameUrl, window.location.href);
+      url.searchParams.set('lang', language);
+      url.searchParams.set('scene', scene.id);
+      url.searchParams.set('view', state.previewMode);
+      url.searchParams.set('v', SHOP_BUILD_ID);
+      return url.pathname + url.search;
+    }
+
+    function setText(element, value) {
+      if (element) element.textContent = value;
+    }
+
+    function updateFrameUrls() {
+      const nextUrl = shopUrl(state.language);
+      if (els.openShopLink) els.openShopLink.href = nextUrl;
+      if (!els.shopFrame.getAttribute('src') || els.shopFrame.dataset.sceneId !== state.selectedSceneId) {
+        els.shopFrame.src = nextUrl;
+        els.shopFrame.dataset.sceneId = state.selectedSceneId;
+      }
+      els.shopFrame.title = t('frameTitle');
+    }
+
+    function updateWorkbenchUrl() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('scene', state.selectedSceneId);
+      url.searchParams.set('view', state.previewMode);
+      window.history.replaceState({}, '', url);
+    }
+
+    function syncPreviewContext() {
+      sendShopMessage('set-preview-context', {
+        sceneId: state.selectedSceneId,
+        view: state.previewMode,
+      });
+    }
+
+    function createBusinessSceneIcon(sceneId) {
+      const mark = document.createElement('span');
+      mark.className = `service-icon service-icon-${sceneId}`;
+      mark.setAttribute('aria-hidden', 'true');
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 40 40');
+      svg.setAttribute('focusable', 'false');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M8.5 11.5c4.2 0 7.5 1.1 10.5 3.5v13.5c-3-2.3-6.3-3.5-10.5-3.5V11.5Zm23 0c-4.2 0-7.5 1.1-10.5 3.5v13.5c3-2.3 6.3-3.5 10.5-3.5V11.5Z');
+      svg.append(path);
+      mark.append(svg);
+      return mark;
+    }
+
+    function renderBusinessScenes() {
+      if (!els.businessSceneList) return;
+      const items = BUSINESS_SCENARIOS.map((scene) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `scene-item${scene.id === state.selectedSceneId ? ' active' : ''}`;
+        button.dataset.sceneId = scene.id;
+        button.setAttribute('aria-pressed', scene.id === state.selectedSceneId ? 'true' : 'false');
+        button.title = t(scene.titleKey);
+
+        const mark = createBusinessSceneIcon(scene.id);
+
+        const copy = document.createElement('span');
+        copy.className = 'scene-copy';
+        const title = document.createElement('strong');
+        title.textContent = t(scene.titleKey);
+        const description = document.createElement('p');
+        description.textContent = t(scene.descriptionKey);
+        const status = document.createElement('span');
+        status.className = 'scene-status';
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.setAttribute('aria-hidden', 'true');
+        const statusText = document.createElement('span');
+        statusText.textContent = t(scene.statusKey);
+        status.append(dot, statusText);
+        copy.append(title, description, status);
+        button.append(mark, copy);
+        return button;
+      });
+      els.businessSceneList.replaceChildren(...items);
+      if (els.bookstoreRailBtn) els.bookstoreRailBtn.title = t('sceneBookstoreTitle');
+      if (els.simulatorSceneName) els.simulatorSceneName.textContent = t(selectedBusinessScene().descriptionKey);
+    }
+
+    function renderPreviewMode() {
+      const scene = selectedBusinessScene();
+      if (els.previewStage) els.previewStage.dataset.view = state.previewMode;
+      if (!els.previewToggle) return;
+      els.previewToggle.querySelectorAll('[data-preview-mode]').forEach((button) => {
+        const mode = button.dataset.previewMode;
+        const supported = scene.supportedViews.includes(mode);
+        button.disabled = !supported;
+        button.classList.toggle('active', mode === state.previewMode);
+        button.setAttribute('aria-selected', mode === state.previewMode ? 'true' : 'false');
+        button.title = supported ? '' : t('previewWebOnly');
+      });
+    }
+
+    function selectBusinessScene(sceneId) {
+      const scene = BUSINESS_SCENARIOS.find((item) => item.id === sceneId);
+      if (!scene) return;
+      const changed = state.selectedSceneId !== scene.id;
+      state.selectedSceneId = scene.id;
+      if (!scene.supportedViews.includes(state.previewMode)) {
+        state.previewMode = scene.supportedViews[0];
+      }
+      renderBusinessScenes();
+      renderPreviewMode();
+      updateWorkbenchUrl();
+      if (changed) updateFrameUrls();
+      syncPreviewContext();
+    }
+
+    function setPreviewMode(mode) {
+      const scene = selectedBusinessScene();
+      if (!scene.supportedViews.includes(mode) || state.previewMode === mode) return;
+      state.previewMode = mode;
+      renderPreviewMode();
+      updateWorkbenchUrl();
+      syncPreviewContext();
+    }
+
+    function persistLayoutPreference(side, collapsed) {
+      try {
+        localStorage.setItem(LAYOUT_STORAGE_KEYS[side], String(collapsed));
+      } catch (_) {}
+    }
+
+    function renderLayoutState() {
+      document.documentElement.dataset.leftCollapsed = state.leftCollapsed ? 'true' : 'false';
+      document.documentElement.dataset.rightCollapsed = state.rightCollapsed ? 'true' : 'false';
+      document.body.dataset.leftDrawerOpen = state.leftDrawerOpen ? 'true' : 'false';
+      document.body.dataset.rightDrawerOpen = state.rightDrawerOpen ? 'true' : 'false';
+
+      const compact = compactViewport.matches;
+      const leftExpanded = compact ? state.leftDrawerOpen : !state.leftCollapsed;
+      const rightExpanded = compact ? state.rightDrawerOpen : !state.rightCollapsed;
+      if (els.leftCollapseBtn) {
+        els.leftCollapseBtn.setAttribute('aria-expanded', leftExpanded ? 'true' : 'false');
+        els.leftCollapseBtn.setAttribute('aria-label', t(leftExpanded ? 'collapseScenes' : 'expandScenes'));
+        els.leftCollapseBtn.title = t(leftExpanded ? 'collapseScenes' : 'expandScenes');
+      }
+      if (els.rightCollapseBtn) {
+        els.rightCollapseBtn.setAttribute('aria-expanded', rightExpanded ? 'true' : 'false');
+        els.rightCollapseBtn.setAttribute('aria-label', t(rightExpanded ? 'collapseFaults' : 'expandFaults'));
+        els.rightCollapseBtn.title = t(rightExpanded ? 'collapseFaults' : 'expandFaults');
+      }
+      if (els.mobileScenesBtn) {
+        els.mobileScenesBtn.setAttribute('aria-expanded', state.leftDrawerOpen ? 'true' : 'false');
+        els.mobileScenesBtn.setAttribute('aria-label', t(state.leftDrawerOpen ? 'collapseScenes' : 'expandScenes'));
+        els.mobileScenesBtn.title = t(state.leftDrawerOpen ? 'collapseScenes' : 'expandScenes');
+      }
+      if (els.mobileFaultsBtn) {
+        els.mobileFaultsBtn.setAttribute('aria-expanded', state.rightDrawerOpen ? 'true' : 'false');
+        els.mobileFaultsBtn.setAttribute('aria-label', t(state.rightDrawerOpen ? 'collapseFaults' : 'expandFaults'));
+        els.mobileFaultsBtn.title = t(state.rightDrawerOpen ? 'collapseFaults' : 'expandFaults');
+      }
+    }
+
+    function closeDrawers() {
+      state.leftDrawerOpen = false;
+      state.rightDrawerOpen = false;
+      renderLayoutState();
+    }
+
+    function toggleSidebar(side) {
+      if (compactViewport.matches) {
+        if (side === 'left') {
+          state.leftDrawerOpen = !state.leftDrawerOpen;
+          state.rightDrawerOpen = false;
+        } else {
+          state.rightDrawerOpen = !state.rightDrawerOpen;
+          state.leftDrawerOpen = false;
+        }
+      } else if (side === 'left') {
+        state.leftCollapsed = !state.leftCollapsed;
+        persistLayoutPreference('left', state.leftCollapsed);
+      } else {
+        state.rightCollapsed = !state.rightCollapsed;
+        persistLayoutPreference('right', state.rightCollapsed);
+      }
+      renderLayoutState();
+    }
+
+
+    function createLogEntry(title, message, status) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      if (status) entry.dataset.status = status;
+
+      const head = document.createElement('div');
+      head.className = 'log-entry-head';
+
+      const label = document.createElement('span');
+      label.className = 'log-entry-title';
+      label.textContent = title;
+
+      const time = document.createElement('span');
+      time.textContent = new Date().toLocaleTimeString();
+
+      const body = document.createElement('div');
+      body.className = 'log-entry-message';
+      body.textContent = message;
+
+      head.append(label, time);
+      entry.append(head, body);
+      return entry;
+    }
+
+    function log(message, options = {}) {
+      if (!els.logs) return;
+      const entry = createLogEntry(options.title || t('shopLogTitle'), message, options.status || 'info');
+      els.logs.prepend(entry);
+      while (els.logs.children.length > 48) {
+        els.logs.removeChild(els.logs.lastElementChild);
+      }
+    }
+
+    function shortJson(value) {
+      const text = typeof value === 'string' ? value : JSON.stringify(value);
+      return text && text.length > 520 ? `${text.slice(0, 520)}...` : text;
+    }
+
+    function shortId(value) {
+      if (!value) return '-';
+      return value.length > 18 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+    }
+
+    function formatFaultRecordDuration(record) {
+      const end = record.endedAt || Date.now();
+      const totalSeconds = Math.max(0, Math.floor((end - record.startedAt) / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const parts = hours > 0 ? [hours, minutes, seconds] : [minutes, seconds];
+      return parts.map((part) => String(part).padStart(2, '0')).join(':');
+    }
+
+    function faultRecordStatusLabel(status) {
+      const keys = {
+        pending: 'faultHistoryPending',
+        active: 'faultHistoryActive',
+        closed: 'faultHistoryClosed',
+        failed: 'faultHistoryFailed',
+      };
+      return t(keys[status] || keys.pending);
+    }
+
+    function renderFaultHistory() {
+      if (!els.faultHistoryList || !els.faultHistoryCount) return;
+      els.faultHistoryCount.textContent = t('faultHistoryCount', { count: state.faultRecords.length });
+      if (!state.faultRecords.length) {
+        const empty = document.createElement('div');
+        empty.className = 'fault-history-empty';
+        empty.textContent = t('faultHistoryEmpty');
+        els.faultHistoryList.replaceChildren(empty);
+        return;
+      }
+
+      const locale = state.language === 'en' ? 'en-US' : 'zh-CN';
+      const rows = state.faultRecords.map((record) => {
+        const scenario = localizedScenario(scenarioForFault(record.scenarioId));
+        const row = document.createElement('article');
+        row.className = 'fault-record';
+        row.dataset.status = record.status;
+
+        const dot = document.createElement('span');
+        dot.className = 'fault-record-dot';
+        dot.setAttribute('aria-hidden', 'true');
+
+        const copy = document.createElement('div');
+        copy.className = 'fault-record-copy';
+        const titleRow = document.createElement('div');
+        titleRow.className = 'fault-record-title-row';
+        const title = document.createElement('strong');
+        title.className = 'fault-record-title';
+        title.textContent = t('faultHistoryInject', { title: scenario?.localizedTitle || record.scenarioId });
+        title.title = title.textContent;
+        const status = document.createElement('span');
+        status.className = 'fault-record-status';
+        status.textContent = faultRecordStatusLabel(record.status);
+        titleRow.append(title, status);
+
+        const meta = document.createElement('div');
+        meta.className = 'fault-record-meta';
+        const layerAndService = document.createElement('span');
+        layerAndService.textContent = `${layerGroupLabel(record.layer)} / ${record.service || '-'}`;
+        const started = document.createElement('span');
+        started.textContent = new Date(record.startedAt).toLocaleTimeString(locale, { hour12: false });
+        const duration = document.createElement('span');
+        duration.textContent = t('faultHistoryDuration', { duration: formatFaultRecordDuration(record) });
+        const triggers = document.createElement('span');
+        triggers.textContent = t('faultHistoryTriggers', { count: record.triggerCount || 0 });
+        meta.append(layerAndService, started, duration, triggers);
+        if (record.error) {
+          const error = document.createElement('span');
+          error.textContent = record.error;
+          error.title = record.error;
+          meta.append(error);
+        }
+
+        copy.append(titleRow, meta);
+        row.append(dot, copy);
+        return row;
+      });
+      els.faultHistoryList.replaceChildren(...rows);
+    }
+
+    function finishActiveFaultRecord(status = 'closed') {
+      if (!state.activeFaultRecordId) return;
+      const record = state.faultRecords.find((item) => item.id === state.activeFaultRecordId);
+      if (record) {
+        record.status = status;
+        record.endedAt = Date.now();
+      }
+      state.activeFaultRecordId = '';
+      renderFaultHistory();
+    }
+
+    function startFaultRecord(scenario) {
+      finishActiveFaultRecord('closed');
+      const record = {
+        id: `fault-record-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        scenarioId: scenario.id,
+        layer: scenario.layer || '-',
+        service: scenario.service || scenario.target || '-',
+        startedAt: Date.now(),
+        endedAt: 0,
+        status: 'pending',
+        triggerCount: 0,
+        error: '',
+      };
+      state.faultRecords.unshift(record);
+      state.faultRecords = state.faultRecords.slice(0, 12);
+      state.activeFaultRecordId = record.id;
+      renderFaultHistory();
+      return record.id;
+    }
+
+    function updateFaultRecord(recordId, updates) {
+      const record = state.faultRecords.find((item) => item.id === recordId);
+      if (!record) return;
+      Object.assign(record, updates);
+      if (record.status === 'failed' || record.status === 'closed') {
+        record.endedAt = record.endedAt || Date.now();
+        if (state.activeFaultRecordId === recordId) state.activeFaultRecordId = '';
+      }
+      renderFaultHistory();
+    }
+
+    function incrementActiveFaultRecordTrigger(triggerId = '', amount = 1) {
+      if (!state.activeFaultRecordId) return;
+      if (triggerId && state.countedFaultTriggerIds.includes(triggerId)) return;
+      if (triggerId) {
+        state.countedFaultTriggerIds.push(triggerId);
+        state.countedFaultTriggerIds = state.countedFaultTriggerIds.slice(-80);
+      }
+      const record = state.faultRecords.find((item) => item.id === state.activeFaultRecordId);
+      if (!record) return;
+      record.triggerCount = (record.triggerCount || 0) + Math.max(1, Number(amount) || 1);
+      renderFaultHistory();
+    }
+
+    function normalizeTraceIds(traceIds) {
+      const values = Array.isArray(traceIds) ? traceIds : [traceIds];
+      return [...new Set(values
+        .map((value) => String(value || '').trim())
+        .filter(Boolean))];
+    }
+
+    function buildGuanceTraceQuery(traceIds) {
+      return normalizeTraceIds(traceIds)
+        .map((traceId) => `trace_id:${traceId}`)
+        .join(' OR ');
+    }
+
+    function encodeGuanceTraceQuery(query) {
+      return `b64-${btoa(query).replace(/=+$/, '')}`;
+    }
+
+    function buildGuanceTraceUrl(traceIds) {
+      if (!state.demoConfig.guanceConsoleUrl || !state.demoConfig.workspaceId) return '';
+      const url = new URL('/tracing/link', state.demoConfig.guanceConsoleUrl);
+      Object.entries({
+        lak: 'Tracing', activeName: 'LinkToTrackLink', w: state.demoConfig.workspaceId,
+        time: '15m', mode: 'traceid', cols: 'time,trace_id,service,resource,duration',
+        viewType: 'view', refresh: '30',
+      }).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
+      const ids = normalizeTraceIds(traceIds);
+      if (ids.length === 1) {
+        url.searchParams.set('trace_id', ids[0]);
+      }
+      const query = buildGuanceTraceQuery(ids);
+      if (query) {
+        url.searchParams.set('query', encodeGuanceTraceQuery(query));
+      }
+      return url.toString();
+    }
+
+    function updateGuanceTraceLink(traceIds) {
+      if (arguments.length > 0) {
+        state.lastTraceIds = normalizeTraceIds(traceIds);
+      }
+      const ids = normalizeTraceIds(state.lastTraceIds);
+      const hasTrace = ids.length > 0;
+      const traceUrl = hasTrace ? buildGuanceTraceUrl(ids) : '';
+      if (els.guanceTraceLink) {
+        els.guanceTraceLink.href = traceUrl || '#';
+        els.guanceTraceLink.dataset.copyTrace = traceUrl ? 'false' : 'true';
+        els.guanceTraceLink.classList.toggle('disabled', !hasTrace);
+        els.guanceTraceLink.setAttribute('aria-disabled', hasTrace ? 'false' : 'true');
+      }
+      if (els.traceLinkHint) {
+        if (!hasTrace) {
+          els.traceLinkHint.textContent = t('parentTraceLinkPending');
+        } else if (ids.length === 1) {
+          els.traceLinkHint.textContent = t('parentTraceLinkReady', { traceId: shortId(ids[0]) });
+        } else {
+          els.traceLinkHint.textContent = t('parentTraceLinkReadyBatch', { count: ids.length });
+        }
+      }
+    }
+
+    function extractTraceIdFromText(text) {
+      const match = String(text || '').match(/\btrace_id=([0-9A-Fa-f]+)\b/);
+      return match ? match[1] : '';
+    }
+
+    function pickTraceIdFromLogBody(body) {
+      if (!body || typeof body !== 'object') return '';
+      if (body.traceId) return body.traceId;
+      if (Array.isArray(body.traceIds) && body.traceIds[0]) return body.traceIds[0];
+      const items = Array.isArray(body.items) ? body.items : [];
+      for (const item of items) {
+        const traceId = item.traceId || item.trace_id || extractTraceIdFromText(item.message);
+        if (traceId) return traceId;
+      }
+      const lines = Array.isArray(body.lines) ? body.lines : [];
+      for (const line of lines) {
+        const traceId = extractTraceIdFromText(line);
+        if (traceId) return traceId;
+      }
+      return '';
+    }
+
+    async function resolveTraceLinkFromOrder(body = {}, payload = {}, lookupSeq = ++state.traceLookupSeq) {
+      const requestId = body.businessRequestId || payload.bizRequestId || payload.businessRequestId || '';
+      const orderId = body.orderId || '';
+      if (!requestId && !orderId) return;
+
+      const params = new URLSearchParams();
+      if (requestId) params.set('biz_request_id', requestId);
+      if (orderId) params.set('order_id', orderId);
+      params.set('limit', '12');
+
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 350 : 500));
+        if (lookupSeq !== state.traceLookupSeq) return;
+        try {
+          const { response, body: logBody } = await requestJson(`/api/demo/logs?${params.toString()}`);
+          if (!response.ok) continue;
+          const traceId = pickTraceIdFromLogBody(logBody);
+          if (traceId) {
+            if (lookupSeq === state.traceLookupSeq) updateGuanceTraceLink(traceId);
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+
+    function updateBusyControls() {
+      [els.faultBtn, els.recoverBtn, els.refreshBtn].forEach((button) => {
+        if (button) button.disabled = state.busy;
+      });
+      [els.faultLayerTabs, els.faultScenarioTabs].forEach((container) => {
+        if (!container) return;
+        container.querySelectorAll('.tab-button').forEach((button) => {
+          button.disabled = state.busy || button.dataset.selectable !== 'true';
+        });
+      });
+    }
+
+    function setBusy(value) {
+      state.busy = value;
+      updateBusyControls();
+    }
+
+    async function requestJson(url, options = {}) {
+      const response = await fetch(`${apiPrefix}${url}`, {
+        cache: 'no-store',
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      });
+      const text = await response.text();
+      let body = text;
+      try { body = JSON.parse(text); } catch (_) {}
+      return { response, body };
+    }
+
+    function controlToken() {
+      let token = sessionStorage.getItem(CONTROL_TOKEN_STORAGE_KEY) || '';
+      if (!token) {
+        token = window.prompt(state.language === 'en'
+          ? 'Enter the demo control token for fault and warm-up operations:'
+          : '请输入 Demo 控制口令，用于故障注入、恢复和预热：') || '';
+        if (token) sessionStorage.setItem(CONTROL_TOKEN_STORAGE_KEY, token);
+      }
+      return token;
+    }
+
+    function controlRequestOptions() {
+      const token = controlToken();
+      if (!token) throw new Error(state.language === 'en' ? 'Control token is required' : '必须提供控制口令');
+      return { method: 'POST', headers: { 'X-Demo-Control-Token': token } };
+    }
+
+    async function loadDemoConfig() {
+      try {
+        const { response, body } = await requestJson('/api/demo/config');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.demoConfig = body && typeof body === 'object' ? body : {};
+        updateGuanceTraceLink();
+      } catch (error) {
+        state.demoConfig = {};
+        log(`Demo config: ${error.message}`, { status: 'warn' });
+      }
+    }
+
+    function sendShopMessage(type, payload = {}) {
+      if (!els.shopFrame.contentWindow) return;
+      els.shopFrame.contentWindow.postMessage({
+        source: 'mall-demo-parent',
+        type,
+        payload,
+      }, window.location.origin);
+    }
+
+    function syncLanguageToShop() {
+      sendShopMessage('set-language', { language: state.language });
+    }
+
+    function setLanguage(language) {
+      state.language = I18N.setLanguage(language, { updateUrl: true });
+      document.title = t('workbenchTitle');
+      document.querySelectorAll('[data-lang]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.lang === state.language);
+      });
+      renderBusinessScenes();
+      renderPreviewMode();
+      renderLayoutState();
+      updateFrameUrls();
+      renderFaultCatalog();
+      renderActiveFault(state.faultMode);
+      renderFaultHistory();
+      updateGuanceTraceLink();
+      syncLanguageToShop();
+      syncPreviewContext();
+    }
+
+    function localizedScenario(scenario) {
+      if (!scenario) return null;
+      return {
+        ...scenario,
+        localizedTitle: I18N.faultText(scenario, 'title', state.language),
+        localizedDescription: I18N.faultText(scenario, 'description', state.language),
+        localizedObservation: I18N.faultText(scenario, 'observation', state.language),
+        localizedLayer: layerGroupLabel(scenario.layer),
+      };
+    }
+
+    function layerGroupForLayer(layer) {
+      return FAULT_LAYER_GROUPS.find((group) => group.id === layer || group.layers.includes(layer)) || null;
+    }
+
+    function layerGroupLabel(layerOrGroup) {
+      const group = layerGroupForLayer(layerOrGroup);
+      return group ? t(group.labelKey) : I18N.layerLabel(layerOrGroup, state.language);
+    }
+
+    function orderedFaultLayers() {
+      return FAULT_LAYER_GROUPS
+        .filter((group) => state.faults.some((scenario) => group.layers.includes(scenario.layer)))
+        .map((group) => group.id);
+    }
+
+    function scenariosForLayer(layer) {
+      const group = layerGroupForLayer(layer);
+      if (!group) return state.faults.filter((scenario) => scenario.layer === layer);
+      return state.faults.filter((scenario) => group.layers.includes(scenario.layer));
+    }
+
+    function selectedFaultScenario() {
+      return state.faults.find((scenario) => scenario.id === state.selectedFaultId) || null;
+    }
+
+    function scenarioForFault(fault) {
+      return state.faults.find((scenario) => scenario.id === fault || scenario.mode === fault) || null;
+    }
+
+    function normalizeFaultMode(fault) {
+      if (!fault || fault === 'none' || fault === '-') return 'none';
+      const scenario = scenarioForFault(fault);
+      return scenario?.id || fault;
+    }
+
+    function createTabButton(value, label, selected) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tab-button';
+      button.dataset.value = value;
+      button.dataset.selectable = 'true';
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', selected ? 'true' : 'false');
+      button.textContent = label;
+      return button;
+    }
+
+    function createDisabledTab(label) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tab-button';
+      button.dataset.selectable = 'false';
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', 'false');
+      button.textContent = label;
+      button.disabled = true;
+      return button;
+    }
+
+    function renderTabs(container, items, selectedValue) {
+      if (!container) return;
+      container.replaceChildren(...items.map((item) => createTabButton(item.value, item.label, item.value === selectedValue)));
+      updateBusyControls();
+    }
+
+    function renderFaultCatalog() {
+      if (!state.faults.length) {
+        if (els.faultLayerTabs) els.faultLayerTabs.replaceChildren(createDisabledTab(t('commonLoading')));
+        if (els.faultScenarioTabs) els.faultScenarioTabs.replaceChildren(createDisabledTab(t('commonLoading')));
+        updateBusyControls();
+        renderFaultDetail(null);
+        return;
+      }
+
+      const layers = orderedFaultLayers();
+      if (!state.selectedFaultLayer || !layers.includes(state.selectedFaultLayer)) {
+        state.selectedFaultLayer = layers[0] || '';
+      }
+
+      renderTabs(els.faultLayerTabs, layers.map((layer) => ({
+        value: layer,
+        label: layerGroupLabel(layer),
+      })), state.selectedFaultLayer);
+
+      const scenarios = scenariosForLayer(state.selectedFaultLayer);
+      if (!scenarios.some((scenario) => scenario.id === state.selectedFaultId)) {
+        state.selectedFaultId = scenarios[0]?.id || '';
+      }
+
+      renderTabs(els.faultScenarioTabs, scenarios.map((scenario) => {
+        const item = localizedScenario(scenario);
+        return {
+          value: scenario.id,
+          label: item.localizedTitle,
+        };
+      }), state.selectedFaultId);
+      renderFaultDetail(selectedFaultScenario());
+    }
+
+    function renderFaultDetail(scenario) {
+      const item = localizedScenario(scenario);
+      if (!item) {
+        els.faultDetailTitle.textContent = t('parentFaultLoadingTitle');
+        els.faultDetailKind.textContent = '-';
+        els.faultDetailDesc.textContent = t('parentFaultLoadingDesc');
+        els.faultDetailService.textContent = 'service=-';
+        els.faultDetailTarget.textContent = 'target=-';
+        els.faultDetailTtl.textContent = 'ttl=-';
+        els.faultObservation.textContent = t('parentObservationLoading');
+        return;
+      }
+
+      els.faultDetailTitle.textContent = item.localizedTitle;
+      els.faultDetailKind.textContent = `${item.localizedLayer} · ${item.kind || '-'}`;
+      els.faultDetailDesc.textContent = item.localizedDescription;
+      els.faultDetailService.textContent = `service=${item.service || '-'}`;
+      els.faultDetailTarget.textContent = `target=${item.target || '-'}`;
+      els.faultDetailTtl.textContent = item.clientSide ? 'ttl=browser' : `ttl=${item.ttlSeconds || 0}s`;
+      els.faultObservation.textContent = item.localizedObservation;
+    }
+
+    function renderActiveFault(fault) {
+      const normalized = normalizeFaultMode(fault);
+      const active = normalized !== 'none';
+      const scenario = localizedScenario(scenarioForFault(normalized));
+      els.activeFaultCard.classList.toggle('active', active);
+      els.activeFaultDot.className = active ? 'dot bad' : 'dot';
+      els.activeFaultCode.textContent = active ? normalized : 'none';
+      els.activeFaultName.textContent = active ? (scenario?.localizedTitle || normalized) : t('parentNoFault');
+      els.activeFaultDetail.textContent = active
+        ? t('parentFaultActiveDetail', {
+            layer: scenario?.localizedLayer || '-',
+            kind: scenario?.kind || '-',
+          })
+        : t('parentNoFaultDetail');
+    }
+
+    function setFaultStatus(fault) {
+      const normalized = normalizeFaultMode(fault);
+      state.faultMode = normalized;
+      renderActiveFault(normalized);
+    }
+
+    function summarizeFaults(body) {
+      const backendFaults = [
+        body.order?.fault?.mode,
+        body.inventory?.fault?.mode,
+        body.payment?.fault?.mode,
+      ].map(normalizeFaultMode).filter((mode) => mode && mode !== 'none' && mode !== '-');
+      if (state.activeClientFault) {
+        backendFaults.unshift(state.activeClientFault.id);
+      }
+      return backendFaults.length ? backendFaults.join(', ') : 'none';
+    }
+
+    async function loadFaultCatalog() {
+      try {
+        const { response, body } = await requestJson('/api/demo/faults');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.faults = Array.isArray(body.items) ? body.items : [];
+        renderFaultCatalog();
+        renderActiveFault(state.faultMode);
+      } catch (error) {
+        log(t('parentCatalogFailed', { message: error.message }), { status: 'warn' });
+        renderFaultCatalog();
+      }
+    }
+
+    async function refreshStatus() {
+      try {
+        const { response, body } = await requestJson('/api/demo/status');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        setText(els.orderHealth, body.order?.health?.status || body.order?.status || '-');
+        setText(els.inventoryHealth, body.inventory?.health?.status || body.inventory?.health?.error || '-');
+        setText(els.paymentHealth, body.payment?.health?.status || body.payment?.health?.error || '-');
+        els.lastRefresh.textContent = t('parentLastRefreshAt', { time: new Date().toLocaleTimeString() });
+        setFaultStatus(summarizeFaults(body));
+      } catch (error) {
+        setText(els.orderHealth, t('commonUnknown'));
+        setText(els.inventoryHealth, t('commonUnknown'));
+        setText(els.paymentHealth, t('commonUnknown'));
+        log(t('parentStatusFailed', { message: error.message }), { status: 'warn' });
+      }
+    }
+
+    async function clearBackendFaultsForClientInjection(scenario) {
+      const { response } = await requestJson('/api/demo/faults/off', controlRequestOptions());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      sendShopMessage('clear-client-fault');
+      return scenario;
+    }
+
+    function clientFaultHint(scenario) {
+      if (scenario.id === 'frontend_sourcemap_error') return t('parentClientFaultHintSourceMap');
+      if (scenario.id === 'frontend_slow_resource') return t('parentClientFaultHintSlow');
+      return t('parentClientFaultHintClick');
+    }
+
+    function injectClientFault(scenario) {
+      const item = localizedScenario(scenario);
+      state.activeClientFault = scenario;
+      setFaultStatus(scenario.id);
+      sendShopMessage('set-client-fault', { scenario });
+      log(t('parentClientFaultInjected', { title: item.localizedTitle }), { title: t('parentFaultPanel'), status: 'warn' });
+      log(clientFaultHint(scenario), { title: t('parentLogPanel'), status: 'warn' });
+    }
+
+    async function enableFaultScenario(scenarioId) {
+      const scenario = state.faults.find((item) => item.id === scenarioId) || { id: scenarioId, title: scenarioId };
+      const item = localizedScenario(scenario);
+      const recordId = startFaultRecord(scenario);
+      setBusy(true);
+      try {
+        state.activeClientFault = null;
+        sendShopMessage('clear-client-fault');
+        setFaultStatus('none');
+
+        if (scenario.clientSide) {
+          await clearBackendFaultsForClientInjection(scenario);
+          injectClientFault(scenario);
+          updateFaultRecord(recordId, { status: 'active' });
+          return;
+        }
+
+        const { response, body } = await requestJson(`/api/demo/faults/${encodeURIComponent(scenario.id)}/enable`, {
+          ...controlRequestOptions(),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        log(t('parentBackendFaultInjected', {
+          title: item.localizedTitle,
+          status: response.status,
+          body: shortJson(body),
+        }), { title: t('parentFaultPanel'), status: 'warn' });
+        setFaultStatus(scenario.id);
+        sendShopMessage('set-fault-hint', { scenario });
+        updateFaultRecord(recordId, { status: 'active' });
+      } catch (error) {
+        updateFaultRecord(recordId, { status: 'failed', error: error.message });
+        log(t('parentFaultInjectFailed', {
+          title: item?.localizedTitle || scenario.id,
+          message: error.message,
+        }), { status: 'error' });
+      } finally {
+        setBusy(false);
+        refreshStatus();
+      }
+    }
+
+    async function clearAllFaults() {
+      setBusy(true);
+      try {
+        const { response, body } = await requestJson('/api/demo/faults/off', controlRequestOptions());
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.activeClientFault = null;
+        sendShopMessage('clear-client-fault');
+        setFaultStatus('none');
+        finishActiveFaultRecord('closed');
+        log(`${t('parentFaultClosed')} HTTP ${response.status}: ${shortJson(body)}`, { title: t('parentFaultPanel') });
+      } catch (error) {
+        log(t('parentFaultCloseFailed', { message: error.message }), { status: 'error' });
+      } finally {
+        setBusy(false);
+        refreshStatus();
+      }
+    }
+
+    function updateFaultLayer(layer) {
+      state.selectedFaultLayer = layer;
+      const scenarios = scenariosForLayer(layer);
+      state.selectedFaultId = scenarios[0]?.id || '';
+      renderFaultCatalog();
+    }
+
+    function updateFaultScenario(scenarioId) {
+      state.selectedFaultId = scenarioId;
+      const scenario = selectedFaultScenario();
+      if (scenario) state.selectedFaultLayer = layerGroupForLayer(scenario.layer)?.id || scenario.layer;
+      renderFaultCatalog();
+    }
+
+    function handleShopMessage(event) {
+      if (event.origin !== window.location.origin) {
+        log(t('parentShopMessageBlocked'), { status: 'warn' });
+        return;
+      }
+      const data = event.data || {};
+      if (data.source !== 'mall-shop-demo') return;
+      const payload = data.payload || {};
+
+      if (data.type === 'shop-ready') {
+        state.shopReady = true;
+        log(t('parentShopReady'), { title: t('appTitle') });
+        syncLanguageToShop();
+        syncPreviewContext();
+        if (state.activeClientFault) {
+          sendShopMessage('set-client-fault', { scenario: state.activeClientFault });
+        }
+        return;
+      }
+
+      if (data.type === 'rum-status') {
+        const status = payload.status || 'pending';
+        const label = status === 'ready'
+          ? t('parentRumReady')
+          : status === 'missing'
+            ? t('parentRumMissing')
+            : status === 'failed'
+              ? t('parentRumFailed')
+              : t('parentRumPending');
+        setText(els.rumStatus, label);
+        if (els.rumDot) els.rumDot.className = status === 'ready' ? 'dot' : status === 'failed' ? 'dot bad' : 'dot warn';
+        return;
+      }
+
+      if (data.type === 'shop-log') {
+        log(payload.message || '-', { title: payload.title || t('shopLogTitle'), status: payload.status || 'info' });
+        return;
+      }
+
+      if (data.type === 'order-result') {
+        const body = payload.body || {};
+        if (state.faultMode !== 'none') {
+          incrementActiveFaultRecordTrigger(payload.triggerId || '', payload.batch ? body.total : 1);
+        }
+        const traceIds = normalizeTraceIds(payload.traceIds || body.traceIds || payload.traceId || body.traceId || body.trace_id);
+        const lookupSeq = ++state.traceLookupSeq;
+        updateGuanceTraceLink(traceIds);
+        if (!traceIds.length) resolveTraceLinkFromOrder(body, payload, lookupSeq);
+        refreshStatus();
+        return;
+      }
+
+      if (data.type === 'frontend-fault-triggered') {
+        incrementActiveFaultRecordTrigger(payload.triggerId || '');
+        updateGuanceTraceLink([]);
+        if (els.traceLinkHint) {
+          els.traceLinkHint.textContent = payload.scenario?.id === 'frontend_slow_resource'
+            ? t('parentTraceLinkSlowPending')
+            : t('parentTraceLinkFrontendFault');
+        }
+        log(t('parentFrontendFaultTriggered', { action: payload.action || '-' }), { title: t('parentFaultPanel'), status: 'error' });
+      }
+    }
+
+    window.addEventListener('message', handleShopMessage);
+    document.querySelectorAll('[data-lang]').forEach((button) => {
+      button.addEventListener('click', () => setLanguage(button.dataset.lang));
+    });
+    if (els.businessSceneList) {
+      els.businessSceneList.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-scene-id]');
+        if (button) selectBusinessScene(button.dataset.sceneId);
+      });
+    }
+    if (els.previewToggle) {
+      els.previewToggle.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-preview-mode]');
+        if (button && !button.disabled) setPreviewMode(button.dataset.previewMode);
+      });
+    }
+    if (els.leftCollapseBtn) els.leftCollapseBtn.addEventListener('click', () => toggleSidebar('left'));
+    if (els.rightCollapseBtn) els.rightCollapseBtn.addEventListener('click', () => toggleSidebar('right'));
+    if (els.mobileScenesBtn) els.mobileScenesBtn.addEventListener('click', () => toggleSidebar('left'));
+    if (els.mobileFaultsBtn) els.mobileFaultsBtn.addEventListener('click', () => toggleSidebar('right'));
+    if (els.bookstoreRailBtn) els.bookstoreRailBtn.addEventListener('click', () => selectBusinessScene('bookstore'));
+    if (els.drawerBackdrop) els.drawerBackdrop.addEventListener('click', closeDrawers);
+    compactViewport.addEventListener('change', closeDrawers);
+    els.faultLayerTabs.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-value]');
+      if (!button || button.disabled) return;
+      updateFaultLayer(button.dataset.value);
+    });
+    els.faultScenarioTabs.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-value]');
+      if (!button || button.disabled) return;
+      updateFaultScenario(button.dataset.value);
+    });
+    if (els.guanceTraceLink) {
+      els.guanceTraceLink.addEventListener('click', async (event) => {
+        if (els.guanceTraceLink.classList.contains('disabled')) {
+          event.preventDefault();
+          return;
+        }
+        if (els.guanceTraceLink.dataset.copyTrace === 'true') {
+          event.preventDefault();
+          await navigator.clipboard.writeText(normalizeTraceIds(state.lastTraceIds).join('\n'));
+        }
+      });
+    }
+    els.faultBtn.addEventListener('click', () => enableFaultScenario(state.selectedFaultId || 'inventory_redis_timeout'));
+    els.recoverBtn.addEventListener('click', clearAllFaults);
+    if (els.refreshBtn) els.refreshBtn.addEventListener('click', refreshStatus);
+
+    updateWorkbenchUrl();
+    setLanguage(state.language);
+    loadFaultCatalog();
+    loadDemoConfig();
+    refreshStatus();
+    setInterval(refreshStatus, STATUS_REFRESH_INTERVAL_MS);
+    setInterval(() => {
+      if (state.activeFaultRecordId) renderFaultHistory();
+    }, 1000);
+  </script>
+</body>
+</html>

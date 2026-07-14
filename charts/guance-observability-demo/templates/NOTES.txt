@@ -1,0 +1,15 @@
+{{- if eq .Values.gateway.service.type "LoadBalancer" }}
+The Gateway is being exposed through a Kubernetes LoadBalancer.
+
+Wait for the external address:
+
+  kubectl -n {{ .Release.Namespace }} get svc {{ include "guance-observability-demo.fullname" . }}-gateway-service --watch
+
+Then visit the EXTERNAL-IP hostname over HTTP. MySQL, Redis and the internal Java services remain private.
+{{- else }}
+The demo is internal-only. Open it with:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "guance-observability-demo.fullname" . }}-gateway-service 8080:80
+
+Then visit http://127.0.0.1:8080/ . MySQL and Redis use emptyDir and are intentionally ephemeral.
+{{- end }}

@@ -1,0 +1,2022 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="sceneBookstoreTitle">商城 Demo</title>
+  <link rel="icon" href="data:," />
+  <script>
+    (() => {
+      const params = new URL(window.location.href).searchParams;
+      document.documentElement.dataset.businessScene = params.get('scene') || 'bookstore';
+      document.documentElement.dataset.previewMode = params.get('view') === 'mobile' ? 'mobile' : 'web';
+    })();
+  </script>
+  <script src="https://static.guance.com/browser-sdk/v3/dataflux-rum.js"></script>
+  <script src="https://static.guance.com/browser-sdk/v3/dataflux-logs.js"></script>
+  <script src="assets/checkout-sourcemap-fault.min.js?v=20260703-trace-link-v4"></script>
+  <script src="assets/selfheal-i18n.js?v=20260714-workbench-v19"></script>
+  <style>
+    :root {
+      --gc-primary: #ff4a33;
+      --gc-primary-hover: #ff3856;
+      --gc-primary-soft: #fff1e9;
+      --gc-rainbow: linear-gradient(215deg, #d730ff 0%, #ff3494 28.52%, #ff3856 54.08%, #ff6956 75.08%, #ff7a00 100%);
+      --gc-rainbow-soft: linear-gradient(135deg, rgba(255, 122, 0, .12) 0%, rgba(255, 56, 86, .10) 48%, rgba(215, 48, 255, .12) 100%);
+      --gc-rainbow-muted: linear-gradient(135deg, rgba(255, 122, 0, .18), rgba(255, 52, 148, .12) 46%, rgba(215, 48, 255, .14));
+      --gc-success: #00a870;
+      --gc-warning: #f5a623;
+      --gc-danger: #dc3545;
+      --gc-page: #fff7f2;
+      --gc-surface: #ffffff;
+      --gc-border: #f0dfe7;
+      --gc-text: #1f2d3d;
+      --gc-muted: #65758b;
+      --gc-ink: #101828;
+      --gc-shadow: 0 14px 30px rgba(16, 24, 40, .10);
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      color: var(--gc-text);
+      background:
+        radial-gradient(circle at 5% 0%, rgba(255, 122, 0, .18), transparent 35%),
+        radial-gradient(circle at 100% 4%, rgba(215, 48, 255, .13), transparent 32%),
+        linear-gradient(180deg, #fff9f4 0%, #fff4fb 46%, #f8f7ff 100%);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input { font: inherit; }
+
+    button {
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--gc-rainbow);
+      cursor: pointer;
+      font-weight: 900;
+      transition: transform .14s ease, filter .14s ease, box-shadow .14s ease;
+    }
+
+    button:hover {
+      filter: brightness(.98);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(255, 74, 51, .22);
+    }
+
+    button:disabled {
+      opacity: .58;
+      cursor: wait;
+      transform: none;
+      box-shadow: none;
+    }
+
+    button.secondary {
+      color: var(--gc-primary);
+      background: #fff;
+      border-color: rgba(255, 74, 51, .24);
+    }
+
+    .shop-app {
+      position: relative;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      gap: 6px;
+      padding: 8px;
+      overflow: hidden;
+    }
+
+    html[data-preview-mode="web"] .shop-app {
+      height: auto;
+      min-height: 100vh;
+      align-content: start;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      overflow: visible;
+    }
+
+    html[data-preview-mode="web"],
+    html[data-preview-mode="web"] body {
+      height: auto;
+      min-height: 100%;
+    }
+
+    html[data-preview-mode="web"] {
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    html[data-preview-mode="web"] .section,
+    html[data-preview-mode="web"] .product-list {
+      overflow: visible;
+    }
+
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .brand {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .store-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #fff;
+      background: transparent;
+      filter: drop-shadow(0 8px 14px rgba(255, 74, 51, .20));
+    }
+
+    .store-mark svg {
+      width: 36px;
+      height: 36px;
+      display: block;
+    }
+
+    .brand-text {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand strong {
+      overflow: hidden;
+      color: var(--gc-ink);
+      font-size: 17px;
+      line-height: 1.12;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .brand span {
+      color: var(--gc-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .store-nav { display: none; }
+
+    .user-dot {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--gc-rainbow);
+      box-shadow: 0 8px 18px rgba(255, 74, 51, .18);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .search {
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 106, 45, .18);
+      border-radius: 999px;
+      color: #475569;
+      background:
+        linear-gradient(#fff, #fff) padding-box,
+        var(--gc-rainbow) border-box;
+      box-shadow: 0 10px 22px rgba(255, 74, 51, .08);
+      font-size: 12px;
+    }
+
+    .search span:nth-child(2) {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .search strong {
+      color: var(--gc-primary);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .search-mark {
+      position: relative;
+      width: 15px;
+      height: 15px;
+      border: 2px solid var(--gc-primary);
+      border-radius: 999px;
+    }
+
+    .search-mark::after {
+      content: "";
+      position: absolute;
+      right: -5px;
+      bottom: -4px;
+      width: 6px;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--gc-primary);
+      transform: rotate(45deg);
+    }
+
+    .hero,
+    .section,
+    .checkout-card {
+      border: 1px solid rgba(255, 106, 45, .16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 12px 28px rgba(255, 74, 51, .06);
+    }
+
+    .hero {
+      display: none;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 11px;
+      background:
+        linear-gradient(135deg, #ffffff 0%, #fff1e9 52%, #fbf0ff 100%);
+    }
+
+    .hero h1 {
+      margin: 0;
+      color: var(--gc-ink);
+      font-size: 18px;
+      line-height: 1.22;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--gc-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .section {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 6px;
+      padding: 8px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .section h2,
+    .checkout-card h2 {
+      margin: 0;
+      color: var(--gc-ink);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 21px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: #8a260f;
+      background: var(--gc-rainbow-soft);
+      font-size: 10px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .product-list {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
+      gap: 8px;
+      min-height: 0;
+      overflow: auto;
+      padding: 5px 2px 6px;
+    }
+
+    .product-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .product-list::-webkit-scrollbar-thumb {
+      border: 2px solid #fff7f2;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ff7a00, #ff3494);
+    }
+
+    .product {
+      display: grid;
+      grid-template-columns: 100px minmax(0, 1fr);
+      gap: 10px;
+      min-height: 172px;
+      padding: 10px;
+      border: 1px solid rgba(255, 106, 45, .14);
+      border-radius: 8px;
+      background:
+        linear-gradient(rgba(255, 255, 255, .96), rgba(255, 255, 255, .96)) padding-box,
+        linear-gradient(135deg, rgba(255, 122, 0, .14), rgba(255, 52, 148, .08), rgba(215, 48, 255, .12)) border-box;
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease, background .15s ease;
+    }
+
+    .product:hover,
+    .product.selected {
+      border-color: transparent;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(255, 250, 247, .98)) padding-box,
+        var(--gc-rainbow) border-box;
+      box-shadow: 0 14px 30px rgba(255, 74, 51, .13);
+      transform: translateY(-1px);
+    }
+
+    .product-main,
+    .product-top,
+    .product-bottom,
+    .book-meta {
+      display: grid;
+      gap: 4px;
+    }
+
+    .product-main {
+      align-content: space-between;
+      min-width: 0;
+    }
+
+    .book-cover {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      align-self: center;
+      min-height: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255, 74, 51, .18);
+      border-radius: 6px;
+      background: #fff;
+      box-shadow: 0 10px 20px rgba(60, 18, 36, .12);
+    }
+
+    .book-cover img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 152px;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .product-badge {
+      display: inline-flex;
+      align-items: center;
+      width: max-content;
+      min-height: 18px;
+      padding: 1px 6px;
+      border-radius: 5px;
+      color: #8a260f;
+      background: linear-gradient(135deg, #ffe6b3, #ffd5e9);
+      font-size: 9px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .product-code {
+      color: #ff4a33;
+      font-family: Consolas, Menlo, monospace;
+      font-size: 9px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .product h3 {
+      margin: 0;
+      color: #17111f;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .product p {
+      margin: 0;
+      display: -webkit-box;
+      overflow: hidden;
+      color: var(--gc-muted);
+      font-size: 10px;
+      line-height: 1.45;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .book-meta {
+      color: var(--gc-muted);
+      font-size: 9px;
+      line-height: 1.35;
+    }
+
+    .book-bullets {
+      display: grid;
+      gap: 3px;
+      margin: 1px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .book-bullets li {
+      position: relative;
+      padding-left: 9px;
+      color: #31445f;
+      font-size: 9px;
+      line-height: 1.3;
+    }
+
+    .book-bullets li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: .48em;
+      width: 4px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--gc-rainbow);
+    }
+
+    .price {
+      display: flex;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 4px;
+      color: #17111f;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .price strong,
+    .price {
+      background: var(--gc-rainbow);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .price span {
+      color: var(--gc-muted);
+      background: none;
+      -webkit-text-fill-color: var(--gc-muted);
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 1.25;
+      white-space: normal;
+    }
+
+    .checkout-card {
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+    }
+
+    .amount-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background:
+        linear-gradient(#fff7f2, #fff7f2) padding-box,
+        var(--gc-rainbow) border-box;
+    }
+
+    .amount-line span {
+      color: var(--gc-muted);
+      font-size: 12px;
+    }
+
+    .amount-line strong {
+      color: #ff3856;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .field label {
+      color: var(--gc-muted);
+      font-size: 12px;
+    }
+
+    .field input {
+      width: 100%;
+      height: 32px;
+      padding: 6px 9px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      color: var(--gc-text);
+      background: #f8fafc;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: rgba(255, 56, 86, .75);
+      box-shadow: 0 0 0 3px rgba(255, 56, 86, .12);
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .toast-region {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      pointer-events: none;
+    }
+
+    .purchase-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(255, 248, 246, .76);
+      backdrop-filter: blur(3px);
+    }
+
+    .purchase-loading[hidden] { display: none; }
+
+    .purchase-loading-inner {
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+      color: var(--gc-ink);
+      text-align: center;
+    }
+
+    .purchase-spinner {
+      display: block;
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255, 74, 51, .16);
+      border-top-color: #ff7a00;
+      border-right-color: #ff3494;
+      border-bottom-color: #d730ff;
+      border-radius: 999px;
+      animation: purchase-spin .78s linear infinite;
+      filter: drop-shadow(0 8px 16px rgba(255, 74, 51, .2));
+    }
+
+    .purchase-loading strong {
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .purchase-loading span {
+      max-width: 250px;
+      color: var(--gc-muted);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .phone-toast {
+      width: min(400px, calc(100vw - 32px));
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 9px;
+      align-items: start;
+      padding: 10px 11px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background:
+        linear-gradient(rgba(255, 255, 255, .97), rgba(255, 249, 246, .97)) padding-box,
+        var(--gc-rainbow) border-box;
+      box-shadow: 0 18px 42px rgba(87, 27, 57, .2);
+      opacity: 0;
+      transform: scale(.96);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .phone-toast.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .phone-toast.success {
+      background:
+        linear-gradient(135deg, rgba(236, 253, 245, .98), rgba(247, 255, 251, .98)) padding-box,
+        linear-gradient(135deg, #00a870, #35c990, #8be0bd) border-box;
+      box-shadow: 0 18px 42px rgba(0, 125, 84, .24);
+    }
+
+    .phone-toast.failed,
+    .phone-toast.alert {
+      border-color: #7f1d1d;
+      background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 48%, #e00000 100%);
+      box-shadow: 0 20px 46px rgba(127, 29, 29, .42);
+    }
+
+    .phone-toast.processing {
+      background:
+        linear-gradient(135deg, rgba(255, 250, 245, .98), rgba(255, 244, 251, .98)) padding-box,
+        var(--gc-rainbow) border-box;
+      box-shadow: 0 18px 42px rgba(255, 52, 148, .2);
+    }
+
+    .toast-icon {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      margin-top: 1px;
+      border-radius: 999px;
+      background: var(--gc-rainbow);
+    }
+
+    .phone-toast.success .toast-icon { background: linear-gradient(135deg, #008f61, #36cc94); }
+    .phone-toast.failed .toast-icon,
+    .phone-toast.alert .toast-icon {
+      border: 1px solid rgba(255, 255, 255, .82);
+      background: rgba(255, 255, 255, .16);
+    }
+    .phone-toast.processing .toast-icon {
+      border: 2px solid rgba(255, 74, 51, .2);
+      border-top-color: #ff7a00;
+      border-right-color: #ff3494;
+      border-bottom-color: #d730ff;
+      background: transparent;
+      animation: toast-spin .75s linear infinite;
+    }
+
+    .toast-status-icon {
+      width: 14px;
+      height: 14px;
+      display: none;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2.3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .phone-toast.info .toast-status-info,
+    .phone-toast.success .toast-status-success,
+    .phone-toast.failed .toast-status-alert,
+    .phone-toast.alert .toast-status-alert { display: block; }
+
+    .toast-copy {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+
+    .toast-copy strong {
+      color: var(--gc-ink);
+      font-size: 13px;
+      line-height: 1.3;
+    }
+
+    .toast-copy span {
+      color: var(--gc-muted);
+      font-size: 10px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .phone-toast.success .toast-copy strong { color: #067a54; }
+    .phone-toast.success .toast-copy span { color: #376b5a; }
+    .phone-toast.failed .toast-copy strong,
+    .phone-toast.alert .toast-copy strong { color: #fff; }
+    .phone-toast.failed .toast-copy span,
+    .phone-toast.alert .toast-copy span { color: #fee2e2; }
+
+    @keyframes toast-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes purchase-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 420px) {
+      .shop-app { padding: 8px; }
+      .hero { display: none; }
+      .product-list { grid-template-columns: minmax(0, 1fr); }
+      .product {
+        grid-template-columns: 92px minmax(0, 1fr);
+        min-height: 164px;
+        gap: 9px;
+      }
+      .book-cover img { max-height: 140px; }
+      .product p { -webkit-line-clamp: 2; }
+      .book-bullets li:nth-child(n+3) { display: none; }
+      .field-grid { grid-template-columns: 1fr; }
+      .button-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    @media (min-width: 720px) {
+      .shop-app {
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 34%);
+        grid-template-rows: auto auto minmax(0, 1fr);
+        grid-template-areas:
+          "appbar appbar"
+          "search search"
+          "catalog checkout";
+        gap: 12px;
+        padding: 14px;
+      }
+
+      .appbar { grid-area: appbar; }
+      .search { grid-area: search; min-height: 46px; border-radius: 8px; }
+      .hero { display: none; }
+      .section { grid-area: catalog; padding: 14px; gap: 10px; }
+      .checkout-card {
+        grid-area: checkout;
+        align-self: start;
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .brand strong { font-size: 20px; }
+      .brand span { font-size: 13px; }
+      .store-nav {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        flex: 1 1 auto;
+      }
+      .store-nav a {
+        min-height: 30px;
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 6px;
+        color: #53657b;
+        font-size: 11px;
+        font-weight: 700;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .store-nav a:hover,
+      .store-nav a.active {
+        color: #ff3856;
+        background: rgba(255, 56, 86, .08);
+      }
+      .store-mark,
+      .store-mark svg { width: 40px; height: 40px; }
+      .user-dot { width: 34px; height: 34px; }
+      .section h2,
+      .checkout-card h2 { font-size: 15px; }
+      .mini-chip { min-height: 24px; font-size: 11px; }
+      .product-list {
+        align-content: start;
+        overflow: visible;
+        padding: 4px;
+        scroll-padding-block: 4px;
+      }
+      .product {
+        grid-template-columns: clamp(130px, 22%, 160px) minmax(0, 1fr);
+        min-height: 220px;
+        height: auto;
+        align-items: start;
+        align-self: start;
+        overflow: hidden;
+        padding: 16px;
+        gap: 18px;
+      }
+      .book-cover {
+        width: 100%;
+        max-width: 160px;
+        aspect-ratio: 3 / 4;
+        align-self: start;
+      }
+      .book-cover img {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        object-fit: contain;
+      }
+      .product-main { align-content: start; gap: 8px; }
+      .product-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .product h3 { overflow-wrap: anywhere; font-size: 20px; }
+      .product p { font-size: 12px; line-height: 1.5; -webkit-line-clamp: 2; }
+      .product-badge { min-height: 22px; padding: 3px 8px; font-size: 10px; }
+      .product-code { font-size: 10px; }
+      .book-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 5px 12px;
+        font-size: 11px;
+      }
+      .book-bullets {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .book-bullets li {
+        padding: 4px 8px;
+        border-radius: 999px;
+        color: #53657b;
+        background: #f3f6fa;
+        font-size: 10px;
+        line-height: 1.3;
+      }
+      .book-bullets li::before { display: none; }
+      .product-bottom {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 2px;
+      }
+      .price { font-size: 26px; gap: 7px; }
+      .price span { max-width: 160px; font-size: 11px; }
+      .amount-line { padding: 12px; }
+      .amount-line span { font-size: 13px; }
+      .amount-line strong { font-size: 22px; }
+      .button-grid { grid-template-columns: minmax(0, 1fr); }
+      .button-grid button { min-height: 46px; }
+      .toast-region { inset: 0; width: auto; transform: none; }
+      .purchase-loading-inner { padding: 24px; }
+
+      html[data-preview-mode="web"] .shop-app {
+        grid-template-rows: auto auto auto;
+        grid-template-areas:
+          "appbar appbar"
+          "search search"
+          "catalog checkout";
+      }
+    }
+
+    @media (min-width: 1120px) {
+      .shop-app { grid-template-columns: minmax(0, 1fr) 330px; padding: 18px; gap: 16px; }
+      .section,
+      .checkout-card { padding: 18px; }
+      .product { grid-template-columns: clamp(150px, 19%, 180px) minmax(0, 1fr); min-height: 250px; padding: 18px; gap: 22px; }
+      .book-cover { max-width: 180px; }
+    }
+
+    @media (min-width: 1500px) {
+      html[data-preview-mode="web"] .shop-app {
+        grid-template-columns: minmax(24px, 1fr) minmax(0, 1000px) 330px minmax(24px, 1fr);
+        grid-template-areas:
+          ". appbar appbar ."
+          ". search search ."
+          ". catalog checkout .";
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shop-app" id="storeHome">
+    <section class="appbar" aria-label="商城 Demo" data-i18n-aria-label="sceneBookstoreTitle">
+      <div class="brand">
+        <span class="store-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" focusable="false">
+            <defs>
+              <linearGradient id="bookMarkGradient" x1="4" y1="36" x2="36" y2="4" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ff7a00" />
+                <stop offset=".56" stop-color="#ff3856" />
+                <stop offset="1" stop-color="#d730ff" />
+              </linearGradient>
+            </defs>
+            <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#bookMarkGradient)" />
+            <path fill="#fff" d="M8.5 11.5c4.2 0 7.5 1.1 10.5 3.5v13.5c-3-2.3-6.3-3.5-10.5-3.5V11.5Zm23 0c-4.2 0-7.5 1.1-10.5 3.5v13.5c3-2.3 6.3-3.5 10.5-3.5V11.5Z" />
+          </svg>
+        </span>
+        <div class="brand-text">
+          <strong data-i18n="sceneBookstoreTitle">商城 Demo</strong>
+          <span data-i18n="sceneBookstoreDescription">图书商城</span>
+        </div>
+      </div>
+      <nav class="store-nav" aria-label="书城导航" data-i18n-aria-label="shopNavLabel">
+        <a class="active" href="#storeHome" data-i18n="shopNavHome">首页</a>
+        <a href="#featuredBooks" data-i18n="shopNavCatalog">图书分类</a>
+        <a href="#featuredBooks" data-i18n="shopNavTechnology">技术专区</a>
+        <a href="#purchasePanel" data-i18n="shopNavPurchases">购书中心</a>
+      </nav>
+      <span class="user-dot" aria-hidden="true">GC</span>
+    </section>
+
+    <div class="toast-region" aria-live="polite" aria-atomic="true">
+      <div class="phone-toast" id="phoneToast" hidden>
+        <span class="toast-icon" aria-hidden="true">
+          <svg class="toast-status-icon toast-status-success" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"></path></svg>
+          <svg class="toast-status-icon toast-status-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+          <svg class="toast-status-icon toast-status-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>
+        </span>
+        <span class="toast-copy">
+          <strong id="phoneToastTitle"></strong>
+          <span id="phoneToastDetail"></span>
+        </span>
+      </div>
+    </div>
+
+    <div class="purchase-loading" id="purchaseLoading" role="status" aria-live="assertive" aria-atomic="true" hidden>
+      <div class="purchase-loading-inner">
+        <span class="purchase-spinner" aria-hidden="true"></span>
+        <strong id="purchaseLoadingTitle"></strong>
+        <span id="purchaseLoadingDetail"></span>
+      </div>
+    </div>
+
+    <div class="search" aria-label="搜索书名、作者或主题" data-i18n-aria-label="shopSearchPlaceholder">
+      <span class="search-mark" aria-hidden="true"></span>
+      <span data-i18n="shopSearchPlaceholder">搜索书名、作者或主题</span>
+      <strong data-i18n="shopSearchAction">购书</strong>
+    </div>
+
+      <section class="hero">
+        <h1 data-i18n="shopHeroTitle">商城 Demo</h1>
+      <p data-i18n="shopHeroText">选择《可观测性工程》并完成购买，会生成关键业务请求，并把 RUM Action、Resource、Error 与后端 APM/日志串起来。</p>
+    </section>
+
+    <section class="section" id="featuredBooks" aria-label="精选图书" data-i18n-aria-label="shopProductSection">
+      <div class="section-head">
+        <h2 data-i18n="shopProductSection">精选图书</h2>
+        <span class="mini-chip" data-i18n="shopProductChip">书店</span>
+      </div>
+      <div class="product-list" id="productList"></div>
+    </section>
+
+    <section class="checkout-card" id="purchasePanel" aria-label="购买确认" data-i18n-aria-label="shopCheckoutTitle">
+      <div class="section-head">
+        <h2 data-i18n="shopCheckoutTitle">购买确认</h2>
+        <span class="mini-chip" id="selectedProduct">可观测性工程</span>
+      </div>
+      <div class="amount-line">
+        <span data-i18n="shopAmountLabel">应付金额</span>
+        <strong id="phoneTotal">￥99.00</strong>
+      </div>
+      <div class="button-grid">
+        <button id="submitBtn" type="button" data-i18n="shopSubscribe">购买这本书</button>
+        <button class="secondary" id="trafficBtn" type="button" data-i18n="shopBatchSubscribe">连续购买 5 次</button>
+      </div>
+      <input id="sku" type="hidden" value="sku-1001" />
+      <input id="amountCent" type="hidden" min="1" value="9900" />
+    </section>
+  </main>
+
+  <script>
+    const I18N = window.SelfhealI18n;
+    let PROJECT_NAME = 'mall-demo';
+    const apiPrefix = window.location.pathname.startsWith('/selfheal') ? '/selfheal' : '';
+    const rumResourceContexts = [];
+    const PREVIEW_DISPLAY_URL = 'https://demo.local/bookstore';
+    const initialPreviewParams = new URL(window.location.href).searchParams;
+    const state = {
+      selectedSku: I18N.products[0].sku,
+      busy: false,
+      rumReady: false,
+      browserLogsReady: false,
+      activeClientFault: null,
+      language: I18N.setLanguage(I18N.detectLanguage(), { updateUrl: true }),
+      businessScene: initialPreviewParams.get('scene') || 'bookstore',
+      previewMode: initialPreviewParams.get('view') === 'mobile' ? 'mobile' : 'web',
+    };
+
+    const els = {
+      productList: document.getElementById('productList'),
+      selectedProduct: document.getElementById('selectedProduct'),
+      phoneTotal: document.getElementById('phoneTotal'),
+      phoneToast: document.getElementById('phoneToast'),
+      phoneToastTitle: document.getElementById('phoneToastTitle'),
+      phoneToastDetail: document.getElementById('phoneToastDetail'),
+      purchaseLoading: document.getElementById('purchaseLoading'),
+      purchaseLoadingTitle: document.getElementById('purchaseLoadingTitle'),
+      purchaseLoadingDetail: document.getElementById('purchaseLoadingDetail'),
+      sku: document.getElementById('sku'),
+      amountCent: document.getElementById('amountCent'),
+      submitBtn: document.getElementById('submitBtn'),
+      trafficBtn: document.getElementById('trafficBtn'),
+      storeNav: document.querySelector('.store-nav'),
+    };
+
+    function t(key, params) {
+      return I18N.t(key, params, state.language);
+    }
+
+    function applyPreviewObservabilityContext() {
+      document.documentElement.dataset.businessScene = state.businessScene;
+      document.documentElement.dataset.previewMode = state.previewMode;
+      if (state.rumReady && window.DATAFLUX_RUM?.setGlobalContextProperty) {
+        window.DATAFLUX_RUM.setGlobalContextProperty('business_scene', state.businessScene);
+        window.DATAFLUX_RUM.setGlobalContextProperty('preview_mode', state.previewMode);
+        window.DATAFLUX_RUM.setGlobalContextProperty('preview_url', PREVIEW_DISPLAY_URL);
+      }
+      if (state.browserLogsReady && window.DATAFLUX_LOGS?.setGlobalContextProperty) {
+        window.DATAFLUX_LOGS.setGlobalContextProperty('business_scene', state.businessScene);
+        window.DATAFLUX_LOGS.setGlobalContextProperty('preview_mode', state.previewMode);
+        window.DATAFLUX_LOGS.setGlobalContextProperty('preview_url', PREVIEW_DISPLAY_URL);
+      }
+    }
+
+    function setPreviewContext(sceneId, view) {
+      state.businessScene = sceneId || state.businessScene || 'bookstore';
+      state.previewMode = view === 'mobile' ? 'mobile' : 'web';
+      applyPreviewObservabilityContext();
+    }
+
+    function postToParent(type, payload = {}) {
+      if (!window.parent || window.parent === window) return;
+      window.parent.postMessage({
+        source: 'mall-shop-demo',
+        type,
+        payload,
+      }, window.location.origin);
+    }
+
+    function shortJson(value) {
+      const text = typeof value === 'string' ? value : JSON.stringify(value);
+      return text && text.length > 520 ? `${text.slice(0, 520)}...` : text;
+    }
+
+    function shortId(value) {
+      if (!value) return '-';
+      return value.length > 18 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+    }
+
+    function selectedProduct() {
+      return I18N.productBySku(state.selectedSku);
+    }
+
+    function selectedProductText() {
+      return I18N.getProductText(selectedProduct(), state.language);
+    }
+
+    function currentAmountCent() {
+      const product = selectedProduct();
+      return Math.max(1, Number(product.amountCent || 1));
+    }
+
+    function setBusy(value) {
+      state.busy = value;
+      [els.submitBtn, els.trafficBtn].forEach((button) => {
+        button.disabled = value;
+        button.setAttribute('aria-busy', value ? 'true' : 'false');
+      });
+    }
+
+    function showPurchaseLoading(title, detail) {
+      hidePhoneResult();
+      els.purchaseLoadingTitle.textContent = title || '';
+      els.purchaseLoadingDetail.textContent = detail || '';
+      els.purchaseLoading.hidden = false;
+    }
+
+    function hidePurchaseLoading() {
+      els.purchaseLoading.hidden = true;
+      els.purchaseLoadingTitle.textContent = '';
+      els.purchaseLoadingDetail.textContent = '';
+    }
+
+    let phoneToastTimer = null;
+
+    function hidePhoneResult() {
+      if (phoneToastTimer) {
+        clearTimeout(phoneToastTimer);
+        phoneToastTimer = null;
+      }
+      els.phoneToast.className = 'phone-toast';
+      els.phoneToast.hidden = true;
+      els.phoneToastTitle.textContent = '';
+      els.phoneToastDetail.textContent = '';
+    }
+
+    function setPhoneResult(kind, title, detail, options = {}) {
+      if (!title && !detail) {
+        hidePhoneResult();
+        return;
+      }
+      if (phoneToastTimer) {
+        clearTimeout(phoneToastTimer);
+        phoneToastTimer = null;
+      }
+      const toastKind = kind || 'info';
+      els.phoneToast.hidden = false;
+      els.phoneToast.className = `phone-toast ${toastKind} show`;
+      els.phoneToastTitle.textContent = title || '';
+      els.phoneToastDetail.textContent = detail || '';
+      const shouldAutoHide = toastKind !== 'processing' && options.sticky !== true;
+      if (shouldAutoHide) {
+        phoneToastTimer = setTimeout(hidePhoneResult, options.durationMs || 4000);
+      }
+    }
+
+    function log(message, options = {}) {
+      postToParent('shop-log', {
+        title: options.title || t('shopLogTitle'),
+        message,
+        status: options.status || 'info',
+      });
+      emitBrowserLog(message, options.context || {}, options.status || 'info');
+    }
+
+    function emitBrowserLog(message, context = {}, status = 'info') {
+      if (!state.browserLogsReady || !window.DATAFLUX_LOGS?.logger?.log) return;
+      window.DATAFLUX_LOGS.logger.log(message, {
+        project: PROJECT_NAME,
+        demo: 'selfheal-business',
+        page: 'shop',
+        ...context,
+      }, status);
+    }
+
+    function newBizRequestId() {
+      if (window.crypto && window.crypto.randomUUID) {
+        return `biz-${window.crypto.randomUUID()}`;
+      }
+      return `biz-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function newFaultTriggerId() {
+      if (window.crypto && window.crypto.randomUUID) {
+        return `fault-trigger-${window.crypto.randomUUID()}`;
+      }
+      return `fault-trigger-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function selectedKeyRequest() {
+      return 'checkout_submit_order';
+    }
+
+    function buildHeaders(keyRequestOverride) {
+      const keyRequest = keyRequestOverride || selectedKeyRequest();
+      const bizRequestId = newBizRequestId();
+      const baggage = [
+        `project=${encodeURIComponent(PROJECT_NAME)}`,
+        `key_request=${encodeURIComponent(keyRequest)}`,
+        'biz_chain=selfheal_checkout',
+        `biz_request_id=${encodeURIComponent(bizRequestId)}`,
+      ].join(',');
+      return {
+        bizRequestId,
+        keyRequest,
+        headers: {
+          'X-Key-Request': keyRequest,
+          'X-Business-Request-Id': bizRequestId,
+          'X-Biz-Chain': 'selfheal_checkout',
+          baggage,
+        },
+      };
+    }
+
+    function normalizeRumResourcePath(url) {
+      try {
+        return new URL(url, window.location.origin).pathname;
+      } catch (_) {
+        return String(url).split('?')[0];
+      }
+    }
+
+    function rememberRumResourceContext(url, context = {}) {
+      const item = {
+        path: normalizeRumResourcePath(url),
+        createdAt: Date.now(),
+        ...context,
+      };
+      rumResourceContexts.unshift(item);
+      rumResourceContexts.splice(24);
+      window.__selfhealLastRumResourceContext = item;
+    }
+
+    function pickRumResourceContext(event) {
+      if (event?.type !== 'resource' || !event.resource?.url) return null;
+      const path = normalizeRumResourcePath(event.resource.url);
+      const now = Date.now();
+      return rumResourceContexts.find((item) => {
+        if (now - item.createdAt > 30000) return false;
+        return path === item.path || path.startsWith(`${item.path}/`);
+      }) || null;
+    }
+
+    function enrichRumEvent(event) {
+      event.context = event.context || {};
+      event.context.project = PROJECT_NAME;
+      event.context.demo = 'selfheal-business';
+      event.context.page = 'shop';
+      event.context.business_scene = state.businessScene;
+      event.context.preview_mode = state.previewMode;
+      event.context.preview_url = PREVIEW_DISPLAY_URL;
+      const activeFaultContext = window.__activeFaultContext || {};
+      if (activeFaultContext.fault_id && (event.type === 'error' || event.type === 'action')) {
+        event.context.fault_id = event.context.fault_id || activeFaultContext.fault_id;
+        event.context.fault_layer = event.context.fault_layer || activeFaultContext.fault_layer;
+        event.context.fault_kind = event.context.fault_kind || activeFaultContext.fault_kind;
+        event.context.fault_target = event.context.fault_target || activeFaultContext.fault_target;
+        if (event.type === 'error') {
+          event.context.biz_operation = event.context.biz_operation || activeFaultContext.operation || 'observe_frontend_error';
+          event.context.error_type = event.context.error_type || activeFaultContext.error_type || 'frontend_null_pointer';
+          event.context.code_file = event.context.code_file || activeFaultContext.code_file || 'shop.html';
+          event.context.code_function = event.context.code_function || activeFaultContext.code_function || 'simulatePurchaseNullPointer';
+          if (activeFaultContext.runtime_file) event.context.runtime_file = event.context.runtime_file || activeFaultContext.runtime_file;
+          if (activeFaultContext.sourcemap_file) event.context.sourcemap_file = event.context.sourcemap_file || activeFaultContext.sourcemap_file;
+        }
+      }
+      const rumContext = pickRumResourceContext(event);
+      if (rumContext) {
+        event.context.biz_chain = rumContext.bizChain || 'selfheal_checkout';
+        if (rumContext.keyRequest) event.context.key_request = rumContext.keyRequest;
+        if (rumContext.bizRequestId) event.context.biz_request_id = rumContext.bizRequestId;
+        if (rumContext.operation) event.context.biz_operation = rumContext.operation;
+        if (rumContext.product) event.context.product = rumContext.product;
+        if (rumContext.sku) event.context.sku = rumContext.sku;
+        if (rumContext.faultId) event.context.fault_id = rumContext.faultId;
+        if (rumContext.faultLayer) event.context.fault_layer = rumContext.faultLayer;
+        if (rumContext.faultKind) event.context.fault_kind = rumContext.faultKind;
+        if (rumContext.faultTarget) event.context.fault_target = rumContext.faultTarget;
+      }
+      return true;
+    }
+
+    function addRumAction(name, context) {
+      if (window.DATAFLUX_RUM && window.DATAFLUX_RUM.addAction) {
+        window.DATAFLUX_RUM.addAction(name, context || {});
+      }
+    }
+
+    function isFrontendErrorFault(context) {
+      return context?.fault_id === 'frontend_click_error' || context?.fault_id === 'frontend_sourcemap_error';
+    }
+
+    function clientFaultContext(scenario) {
+      const base = {
+        fault_id: scenario.id,
+        fault_layer: scenario.layer,
+        fault_kind: scenario.kind,
+        fault_target: scenario.target,
+      };
+      if (scenario.id === 'frontend_sourcemap_error') {
+        return {
+          ...base,
+          operation: 'observe_frontend_sourcemap_error',
+          error_type: 'frontend_sourcemap_null_pointer',
+          code_file: 'assets/src/checkout-sourcemap-fault.js',
+          code_function: 'applyCheckoutDiscount',
+          runtime_file: 'assets/checkout-sourcemap-fault.min.js',
+          sourcemap_file: 'assets/checkout-sourcemap-fault.min.js.map',
+        };
+      }
+      if (scenario.id === 'frontend_slow_resource') {
+        return {
+          ...base,
+          operation: 'fault_frontend_slow_resource',
+          resource_path: '/api/demo/slow-resource',
+        };
+      }
+      return {
+        ...base,
+        operation: 'observe_frontend_click_error',
+        error_type: 'frontend_null_pointer',
+        code_file: 'shop.html',
+        code_function: 'simulatePurchaseNullPointer',
+      };
+    }
+
+    function frontendErrorContext(extra = {}) {
+      const context = window.__activeFaultContext || {};
+      return {
+        project: PROJECT_NAME,
+        demo: 'selfheal-business',
+        page: 'shop',
+        biz_chain: 'selfheal_checkout',
+        operation: context.operation || 'observe_frontend_error',
+        error_type: context.error_type || 'frontend_null_pointer',
+        code_file: context.code_file || 'shop.html',
+        code_function: context.code_function || 'simulatePurchaseNullPointer',
+        ...context,
+        ...extra,
+      };
+    }
+
+    window.addEventListener('error', (event) => {
+      const context = window.__activeFaultContext || {};
+      if (!isFrontendErrorFault(context)) return;
+      const errorContext = frontendErrorContext({
+        source: 'window_error',
+        error_message: event.message,
+        error_file: event.filename,
+        error_line: event.lineno,
+        error_column: event.colno,
+      });
+      log(t('shopLogFrontendError', { message: `${event.message || ''} @ ${event.filename || '-'}:${event.lineno || '-'}` }), {
+        title: t('shopLogTitle'),
+        status: 'error',
+        context: errorContext,
+      });
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const context = window.__activeFaultContext || {};
+      if (!isFrontendErrorFault(context)) return;
+      const reason = event.reason instanceof Error ? event.reason : new Error(String(event.reason || 'Unhandled promise rejection'));
+      log(t('shopLogFrontendRejected', { message: reason.message || '' }), {
+        title: t('shopLogTitle'),
+        status: 'error',
+        context: frontendErrorContext({
+          source: 'unhandledrejection',
+          error_message: reason.message,
+        }),
+      });
+    });
+
+    async function requestJson(url, options = {}) {
+      const { headers = {}, rumContext, ...restOptions } = options;
+      const target = `${apiPrefix}${url}`;
+      if (rumContext) {
+        rememberRumResourceContext(target, rumContext);
+      }
+      const response = await fetch(target, {
+        cache: 'no-store',
+        ...restOptions,
+        headers: { 'Content-Type': 'application/json', ...headers },
+      });
+      const text = await response.text();
+      let body = text;
+      try { body = JSON.parse(text); } catch (_) {}
+      return { response, body };
+    }
+
+    function normalizeBackendLogItems(lines) {
+      return lines.map((line) => {
+        if (typeof line === 'object' && line !== null) {
+          return {
+            source: line.source || line.pod || line.service || 'backend',
+            service: line.service || '',
+            pod: line.pod || '',
+            message: line.message || line.line || '',
+            timestamp: line.timestamp || '',
+            traceId: line.traceId || line.trace_id || '',
+          };
+        }
+        const rawLine = String(line);
+        const sourceMatch = rawLine.match(/^([^:]+):\s+([\s\S]*)$/);
+        return {
+          source: sourceMatch ? sourceMatch[1] : 'backend',
+          service: '',
+          pod: '',
+          message: sourceMatch ? sourceMatch[2] : rawLine,
+          timestamp: '',
+          traceId: '',
+        };
+      });
+    }
+
+    function extractTraceIdFromText(text) {
+      const match = String(text || '').match(/\btrace_id=([0-9A-Fa-f]+)\b/);
+      return match ? match[1] : '';
+    }
+
+    function pickTraceIdFromBackendLogs(result, items) {
+      const body = result?.body || {};
+      if (body.traceId) return body.traceId;
+      if (Array.isArray(body.traceIds) && body.traceIds[0]) return body.traceIds[0];
+      const sourceItems = items || normalizeBackendLogItems(result?.items || []);
+      for (const item of sourceItems) {
+        const traceId = item.traceId || extractTraceIdFromText(item.message);
+        if (traceId) return traceId;
+      }
+      return '';
+    }
+
+    async function fetchBackendLogs(params, requestId) {
+      const { response, body } = await requestJson(`/api/demo/logs?${params.toString()}`, {
+        rumContext: {
+          operation: 'fetch_backend_logs',
+          keyRequest: 'selfheal_log_view',
+          bizChain: 'selfheal_checkout',
+          bizRequestId: requestId,
+        },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const items = Array.isArray(body.items) && body.items.length > 0 ? body.items : (Array.isArray(body.lines) ? body.lines : []);
+      return { items, body };
+    }
+
+    async function logBackendTraceLogs(body, bizRequestId) {
+      const requestId = body?.businessRequestId || bizRequestId;
+      const orderId = body?.orderId;
+      if (!requestId && !orderId) return { traceId: '' };
+
+      const params = new URLSearchParams();
+      if (requestId) params.set('biz_request_id', requestId);
+      if (orderId) params.set('order_id', orderId);
+      params.set('limit', '12');
+
+      try {
+        let lastResult = { items: [] };
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 350 : 500));
+          lastResult = await fetchBackendLogs(params, requestId);
+          if (lastResult.items.length > 0) {
+            const items = normalizeBackendLogItems(lastResult.items);
+            log(t('shopLogBackendFound', { requestId: requestId || orderId, count: items.length }), {
+              title: t('parentLogPanel'),
+              context: { operation: 'fetch_backend_logs', biz_request_id: requestId, order_id: orderId },
+            });
+            items.slice(0, 6).forEach((item) => {
+              log(`${item.service || item.source}: ${item.message}`, {
+                title: t('parentLogPanel'),
+                context: { operation: 'backend_log_line', service: item.service || item.source },
+                status: 'info',
+              });
+            });
+            return { traceId: pickTraceIdFromBackendLogs(lastResult, items), items };
+          }
+        }
+        log(t('shopLogBackendMissing', { requestId: requestId || orderId }), {
+          title: t('parentLogPanel'),
+          status: 'warn',
+          context: { operation: 'fetch_backend_logs', biz_request_id: requestId, order_id: orderId },
+        });
+        return { traceId: pickTraceIdFromBackendLogs(lastResult), items: [] };
+      } catch (error) {
+        log(t('shopLogBackendFailed', { message: error.message }), {
+          title: t('parentLogPanel'),
+          status: 'warn',
+          context: { operation: 'fetch_backend_logs', biz_request_id: requestId, order_id: orderId },
+        });
+        return { traceId: '', items: [] };
+      }
+    }
+
+    function initBrowserLogs(config) {
+      if (!window.DATAFLUX_LOGS) {
+        state.browserLogsReady = false;
+        return;
+      }
+      try {
+        window.DATAFLUX_LOGS.init({
+          datakitOrigin: config.datakitOrigin || undefined,
+          service: config.service || 'mall-h5',
+          env: config.env || 'test',
+          version: config.version || '1.0.0',
+          sessionSampleRate: 100,
+          forwardErrorsToLogs: true,
+        });
+        if (window.DATAFLUX_LOGS.setGlobalContextProperty) {
+          window.DATAFLUX_LOGS.setGlobalContextProperty('project', PROJECT_NAME);
+          window.DATAFLUX_LOGS.setGlobalContextProperty('env', config.env || 'test');
+          window.DATAFLUX_LOGS.setGlobalContextProperty('demo', 'selfheal-business');
+          window.DATAFLUX_LOGS.setGlobalContextProperty('biz_chain', 'selfheal_checkout');
+          window.DATAFLUX_LOGS.setGlobalContextProperty('page', 'shop');
+          window.DATAFLUX_LOGS.setGlobalContextProperty('business_scene', state.businessScene);
+          window.DATAFLUX_LOGS.setGlobalContextProperty('preview_mode', state.previewMode);
+          window.DATAFLUX_LOGS.setGlobalContextProperty('preview_url', PREVIEW_DISPLAY_URL);
+        }
+        state.browserLogsReady = true;
+        applyPreviewObservabilityContext();
+      } catch (_) {
+        state.browserLogsReady = false;
+      }
+    }
+
+    async function initRum() {
+      try {
+        const { response, body } = await requestJson('/api/demo/rum-config');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        PROJECT_NAME = body.project || PROJECT_NAME;
+        if (!body.enabled || !body.applicationId) {
+          postToParent('rum-status', { status: 'disabled' });
+          return;
+        }
+        initBrowserLogs(body);
+        if (!window.DATAFLUX_RUM) {
+          postToParent('rum-status', { status: 'missing' });
+          log(t('shopLogRumMissing'), { status: 'warn', context: { operation: 'init_rum' } });
+          return;
+        }
+
+        const service = body.service || 'mall-h5';
+        window.DATAFLUX_RUM.init({
+          applicationId: body.applicationId,
+          datakitOrigin: body.datakitOrigin || undefined,
+          env: body.env || 'test',
+          version: body.version || '1.0.0',
+          service,
+          sessionSampleRate: body.sessionSampleRate ?? 100,
+          sessionReplaySampleRate: body.sessionReplaySampleRate ?? 100,
+          sessionReplayOnErrorSampleRate: body.sessionReplayOnErrorSampleRate ?? 100,
+          compressIntakeRequests: body.compressIntakeRequests !== false,
+          trackInteractions: true,
+          trackResources: true,
+          trackLongTasks: true,
+          traceType: body.traceType || 'ddtrace',
+          allowedTracingOrigins: [window.location.origin],
+          beforeSend: enrichRumEvent,
+        });
+        if (window.DATAFLUX_RUM.setGlobalContextProperty) {
+          window.DATAFLUX_RUM.setGlobalContextProperty('project', PROJECT_NAME);
+          window.DATAFLUX_RUM.setGlobalContextProperty('env', body.env || 'test');
+          window.DATAFLUX_RUM.setGlobalContextProperty('page', 'shop');
+          window.DATAFLUX_RUM.setGlobalContextProperty('business_scene', state.businessScene);
+          window.DATAFLUX_RUM.setGlobalContextProperty('preview_mode', state.previewMode);
+          window.DATAFLUX_RUM.setGlobalContextProperty('preview_url', PREVIEW_DISPLAY_URL);
+        }
+        if (window.DATAFLUX_RUM.startSessionReplayRecording) {
+          window.DATAFLUX_RUM.startSessionReplayRecording();
+        }
+        state.rumReady = true;
+        applyPreviewObservabilityContext();
+        postToParent('rum-status', { status: 'ready', service, env: body.env || 'test', version: body.version || '1.0.0' });
+        log(t('shopLogRumInit', { service, env: body.env || 'test', version: body.version || '1.0.0' }), {
+          status: 'success',
+          context: {
+            operation: 'init_rum',
+            env: body.env || 'test',
+            datakit_origin: body.datakitOrigin || '',
+            session_replay_sample_rate: body.sessionReplaySampleRate ?? 100,
+          },
+        });
+      } catch (error) {
+        postToParent('rum-status', { status: 'failed', message: error.message });
+        log(t('shopLogRumFailed', { message: error.message }), {
+          status: 'error',
+          context: { operation: 'init_rum' },
+        });
+      }
+    }
+
+    function renderProducts() {
+      const html = I18N.products.map((product) => {
+        const text = I18N.getProductText(product, state.language);
+        const selected = product.sku === state.selectedSku ? ' selected' : '';
+        const bullets = Array.isArray(text.bullets) ? text.bullets : [];
+        return `
+          <article class="product${selected}" data-sku="${product.sku}" tabindex="0">
+            <div class="book-cover">
+              <img src="${text.cover}" alt="${text.coverAlt || text.name}" loading="eager" decoding="async">
+            </div>
+            <div class="product-main">
+              <div class="product-top">
+                <h3>${text.name}</h3>
+                <span class="product-badge">${text.badge}</span>
+              </div>
+              <p>${text.tagline}</p>
+              <div class="book-meta">
+                <span>${text.author || ''}</span>
+                <span>${text.edition || ''}</span>
+              </div>
+              <ul class="book-bullets">
+                ${bullets.map((item) => `<li>${item}</li>`).join('')}
+              </ul>
+              <div class="product-bottom">
+                <span class="product-code">${product.icon}</span>
+                <div class="price">${text.price}<span>${text.note}</span></div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+      els.productList.innerHTML = html;
+      els.productList.querySelectorAll('.product').forEach((product) => {
+        product.addEventListener('click', () => selectProduct(product.dataset.sku));
+        product.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectProduct(product.dataset.sku);
+          }
+        });
+      });
+      updateSelectedProduct(false);
+    }
+
+    function updateSelectedProduct(announce = true) {
+      const product = selectedProduct();
+      const text = selectedProductText();
+      els.selectedProduct.textContent = text.name;
+      els.phoneTotal.textContent = text.price;
+      els.sku.value = product.sku;
+      els.amountCent.value = String(currentAmountCent());
+      document.querySelectorAll('.product').forEach((node) => {
+        node.classList.toggle('selected', node.dataset.sku === product.sku);
+      });
+      if (announce) {
+        setPhoneResult('info', t('shopStatusReady'), t('shopStatusSelected', { product: text.name }));
+      }
+    }
+
+    function selectProduct(sku) {
+      state.selectedSku = sku;
+      updateSelectedProduct(true);
+      const text = selectedProductText();
+      addRumAction('business_select_book_product', { product: text.name, sku });
+      log(t('shopLogSelected', { product: text.name }), {
+        context: { operation: 'select_book_product', product: text.name, sku },
+      });
+    }
+
+    function setLanguage(language) {
+      state.language = I18N.setLanguage(language, { updateUrl: true });
+      renderProducts();
+      if (!state.activeClientFault) {
+        hidePhoneResult();
+      }
+    }
+
+    function activateClientFault(scenario) {
+      state.activeClientFault = scenario;
+      window.__activeFaultContext = clientFaultContext(scenario);
+      const detail = scenario.id === 'frontend_sourcemap_error'
+        ? t('shopStatusFrontendFaultSourceMap')
+        : scenario.id === 'frontend_slow_resource'
+          ? t('shopStatusFrontendFaultSlow')
+          : t('shopStatusFrontendFaultClick');
+      setPhoneResult('alert', t('shopStatusFrontendFault'), detail);
+    }
+
+    function clearClientFault() {
+      state.activeClientFault = null;
+      window.__activeFaultContext = null;
+      hidePhoneResult();
+    }
+
+    function triggerClientFaultFromUserAction(actionName) {
+      const scenario = state.activeClientFault;
+      if (!scenario || !['frontend_click_error', 'frontend_slow_resource', 'frontend_sourcemap_error'].includes(scenario.id)) return false;
+      const triggerId = newFaultTriggerId();
+      window.__activeFaultContext = clientFaultContext(scenario);
+      addRumAction(`fault_${scenario.id}`, {
+        trigger_action: actionName,
+        ...window.__activeFaultContext,
+      });
+      postToParent('frontend-fault-triggered', { action: actionName, scenario, triggerId });
+      log(t('shopLogFrontendFault', { action: actionName }), {
+        status: 'error',
+        context: {
+          operation: `fault_${scenario.id}`,
+          trigger_action: actionName,
+          ...window.__activeFaultContext,
+        },
+      });
+      if (scenario.id === 'frontend_slow_resource') {
+        triggerFrontendSlowResourceFromUserAction(scenario, actionName, triggerId);
+        return true;
+      }
+      triggerFrontendErrorAfterLoading(scenario, actionName);
+      return true;
+    }
+
+    function triggerFrontendErrorAfterLoading(scenario, actionName) {
+      setBusy(true);
+      showPurchaseLoading(t('shopStatusSubmitting'), t('shopStatusSubmittingDetail'));
+      window.setTimeout(() => {
+        hidePurchaseLoading();
+        setBusy(false);
+        setPhoneResult('failed', t('shopStatusFrontendFaultFailed'), t('shopStatusFrontendFaultNoTrace'));
+        if (scenario.id === 'frontend_sourcemap_error') {
+          triggerSourcemapPurchaseNullPointer(actionName);
+          return;
+        }
+        simulatePurchaseNullPointer();
+      }, 700);
+    }
+
+    function simulatePurchaseNullPointer() {
+      const brokenPurchaseState = null;
+      return brokenPurchaseState.total.toFixed(2);
+    }
+
+    function triggerSourcemapPurchaseNullPointer(actionName) {
+      if (!window.SelfhealSourcemapFault?.triggerCheckoutSourcemapFault) {
+        throw new Error('SourceMap fault bundle is not loaded');
+      }
+      return window.SelfhealSourcemapFault.triggerCheckoutSourcemapFault(actionName);
+    }
+
+    async function triggerFrontendSlowResourceFromUserAction(scenario, actionName, triggerId) {
+      window.__activeFaultContext = clientFaultContext(scenario);
+      setBusy(true);
+      showPurchaseLoading(t('shopStatusSlowLoading'), t('shopStatusSlowLoadingDetail'));
+      const startedAt = performance.now();
+      const { headers, bizRequestId, keyRequest } = buildHeaders('frontend_slow_resource');
+      try {
+        const { response, body } = await requestJson('/api/demo/slow-resource?delayMs=2600', {
+          headers,
+          rumContext: {
+            operation: 'fault_frontend_slow_resource',
+            keyRequest,
+            bizChain: 'selfheal_checkout',
+            bizRequestId,
+            faultId: scenario.id,
+            faultLayer: scenario.layer,
+            faultKind: scenario.kind,
+            faultTarget: scenario.target,
+          },
+        });
+        const elapsedMs = Math.round(performance.now() - startedAt);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const traceInfo = await logBackendTraceLogs({ businessRequestId: bizRequestId }, bizRequestId);
+        postToParent('order-result', {
+          ok: true,
+          httpStatus: response.status,
+          body: { ...body, businessRequestId: bizRequestId },
+          bizRequestId,
+          traceId: traceInfo.traceId || '',
+          resource: '/api/demo/slow-resource',
+          triggerId,
+        });
+        hidePurchaseLoading();
+        setPhoneResult('success', t('shopStatusSlowDone'), t('shopStatusSlowDoneDetail', { elapsedMs, delayMs: body.delayMs || '-' }));
+        log(t('shopLogSlowResource', { action: actionName, elapsedMs }), {
+          status: 'warn',
+          context: {
+            operation: 'fault_frontend_slow_resource',
+            trigger_action: actionName,
+            key_request: keyRequest,
+            biz_request_id: bizRequestId,
+            http_status: response.status,
+            duration_ms: elapsedMs,
+            fault_id: scenario.id,
+            fault_layer: scenario.layer,
+            fault_kind: scenario.kind,
+            fault_target: scenario.target,
+          },
+        });
+      } catch (error) {
+        const traceInfo = await logBackendTraceLogs({ businessRequestId: bizRequestId }, bizRequestId);
+        postToParent('order-result', {
+          ok: false,
+          httpStatus: 0,
+          body: { error: error.message, businessRequestId: bizRequestId },
+          bizRequestId,
+          traceId: traceInfo.traceId || '',
+          resource: '/api/demo/slow-resource',
+          triggerId,
+        });
+        hidePurchaseLoading();
+        setPhoneResult('failed', t('shopStatusSlowFailed'), error.message);
+        log(t('shopLogSlowResourceFailed', { message: error.message }), {
+          status: 'error',
+          context: {
+            operation: 'fault_frontend_slow_resource',
+            trigger_action: actionName,
+            key_request: keyRequest,
+            biz_request_id: bizRequestId,
+            fault_id: scenario.id,
+            fault_layer: scenario.layer,
+            fault_kind: scenario.kind,
+            fault_target: scenario.target,
+          },
+        });
+      } finally {
+        hidePurchaseLoading();
+        setBusy(false);
+      }
+    }
+
+    async function submitOrder(options = {}) {
+      const notifyParent = options.notifyParent !== false;
+      const manageBusy = options.manageBusy !== false;
+      const updateStatus = options.updateStatus !== false;
+      const actionName = options.actionName || 'buy_book_button';
+      if (!options.skipClientFault && triggerClientFaultFromUserAction(actionName)) {
+        return { ok: false, aborted: true, httpStatus: 0, body: { error: 'frontend_fault' }, traceId: '' };
+      }
+
+      const product = selectedProduct();
+      const text = selectedProductText();
+      const { headers, bizRequestId, keyRequest } = buildHeaders();
+      const payload = {
+        sku: product.sku,
+        quantity: 1,
+        amountCent: currentAmountCent(),
+      };
+
+      if (manageBusy) setBusy(true);
+      if (updateStatus) showPurchaseLoading(t('shopStatusSubmitting'), t('shopStatusSubmittingDetail'));
+      addRumAction('business_submit_book_order', {
+        product: text.name,
+        sku: payload.sku,
+      });
+
+      try {
+        const { response, body } = await requestJson('/api/orders', {
+          method: 'POST',
+          headers,
+          rumContext: {
+            operation: 'submit_book_order',
+            keyRequest,
+            bizChain: 'selfheal_checkout',
+            bizRequestId,
+            product: text.name,
+            sku: payload.sku,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (response.ok) {
+          if (updateStatus) {
+            hidePurchaseLoading();
+            setPhoneResult('success', t('shopStatusSuccess'), t('shopStatusSuccessDetail', {
+              orderId: body.orderId || '-',
+              bizRequestId: shortId(body.businessRequestId || bizRequestId),
+            }));
+          }
+        } else {
+          if (updateStatus) {
+            hidePurchaseLoading();
+            setPhoneResult('failed', t('shopStatusFailed'), body.message || body.error || `HTTP ${response.status}`);
+          }
+        }
+
+        const traceInfo = await logBackendTraceLogs(body, bizRequestId);
+        const result = {
+          ok: response.ok,
+          httpStatus: response.status,
+          body,
+          bizRequestId,
+          product: text.name,
+          sku: payload.sku,
+          traceId: traceInfo.traceId || '',
+        };
+        if (notifyParent) postToParent('order-result', result);
+        log(t('shopLogSubmit', { status: response.status, body: shortJson(body) }), {
+          context: {
+            operation: 'submit_book_order',
+            key_request: keyRequest,
+            biz_chain: 'selfheal_checkout',
+            biz_request_id: body.businessRequestId || bizRequestId,
+            order_id: body.orderId,
+            http_status: response.status,
+            product: text.name,
+            sku: payload.sku,
+          },
+        });
+        return result;
+      } catch (error) {
+        if (updateStatus) {
+          hidePurchaseLoading();
+          setPhoneResult('failed', t('shopStatusFailed'), error.message);
+        }
+        const traceInfo = await logBackendTraceLogs({ businessRequestId: bizRequestId }, bizRequestId);
+        const result = {
+          ok: false,
+          httpStatus: 0,
+          body: { error: error.message },
+          bizRequestId,
+          product: text.name,
+          sku: payload.sku,
+          traceId: traceInfo.traceId || '',
+        };
+        if (notifyParent) postToParent('order-result', result);
+        log(t('shopLogSubmitFailed', { message: error.message }), {
+          status: 'error',
+          context: {
+            operation: 'submit_book_order',
+            key_request: keyRequest,
+            biz_chain: 'selfheal_checkout',
+            biz_request_id: bizRequestId,
+            product: text.name,
+            sku: payload.sku,
+          },
+        });
+        return result;
+      } finally {
+        if (updateStatus) hidePurchaseLoading();
+        if (manageBusy) setBusy(false);
+      }
+    }
+
+    async function runTraffic() {
+      if (triggerClientFaultFromUserAction('traffic_buy_book_button')) return;
+      log(t('shopLogTrafficStart'), { context: { operation: 'run_book_purchase_traffic', total: 5 } });
+      setBusy(true);
+      const results = [];
+      try {
+        for (let index = 0; index < 5; index += 1) {
+          showPurchaseLoading(t('shopStatusBatchSubmitting', { current: index + 1, total: 5 }), t('shopStatusBatchSubmittingDetail'));
+          const result = await submitOrder({
+            notifyParent: false,
+            manageBusy: false,
+            updateStatus: false,
+            skipClientFault: true,
+            actionName: 'traffic_buy_book_button',
+          });
+          if (result) results.push(result);
+          await new Promise((resolve) => setTimeout(resolve, 180));
+        }
+        const traceIds = [...new Set(results.map((item) => item.traceId).filter(Boolean))];
+        const okCount = results.filter((item) => item.ok).length;
+        const product = selectedProduct();
+        const text = selectedProductText();
+        hidePurchaseLoading();
+        setPhoneResult(okCount === 5 ? 'success' : 'failed', t('shopStatusBatchSuccess', { count: okCount, total: 5 }), t('shopStatusBatchSuccessDetail', { traceCount: traceIds.length }));
+        postToParent('order-result', {
+          ok: okCount > 0,
+          httpStatus: okCount === 5 ? 200 : 207,
+          batch: true,
+          body: {
+            batch: true,
+            total: 5,
+            okCount,
+            traceIds,
+            orderIds: results.map((item) => item.body?.orderId).filter(Boolean),
+          },
+          product: text.name,
+          sku: product.sku,
+          traceIds,
+        });
+        log(t('shopLogTrafficDoneWithTraces', { count: okCount, traceCount: traceIds.length }), {
+          context: {
+            operation: 'run_book_purchase_traffic',
+            total: 5,
+            ok_count: okCount,
+            trace_count: traceIds.length,
+          },
+        });
+      } finally {
+        hidePurchaseLoading();
+        setBusy(false);
+      }
+    }
+
+    function handleParentMessage(event) {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data || {};
+      if (data.source !== 'mall-demo-parent') return;
+      const payload = data.payload || {};
+      if (data.type === 'set-language') {
+        setLanguage(payload.language);
+      } else if (data.type === 'set-preview-context') {
+        setPreviewContext(payload.sceneId, payload.view);
+      } else if (data.type === 'set-client-fault') {
+        activateClientFault(payload.scenario);
+      } else if (data.type === 'clear-client-fault') {
+        clearClientFault();
+      } else if (data.type === 'set-fault-hint') {
+        setPhoneResult('alert', I18N.faultText(payload.scenario, 'title', state.language), t('shopStatusBackendFault'));
+      }
+    }
+
+    window.addEventListener('message', handleParentMessage);
+    els.submitBtn.addEventListener('click', (event) => {
+      if (event.detail > 0) event.currentTarget.blur();
+      submitOrder();
+    });
+    els.trafficBtn.addEventListener('click', runTraffic);
+    if (els.storeNav) {
+      els.storeNav.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href^="#"]');
+        if (!link) return;
+        els.storeNav.querySelectorAll('a').forEach((item) => item.classList.toggle('active', item === link));
+      });
+    }
+    applyPreviewObservabilityContext();
+    renderProducts();
+    hidePhoneResult();
+    initRum();
+    postToParent('shop-ready', {
+      language: state.language,
+      sceneId: state.businessScene,
+      view: state.previewMode,
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# EKS workshop overlay. This intentionally creates an internet-facing AWS load
+# balancer for the demo Gateway. Do not use it for production workloads.
+gateway:
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing

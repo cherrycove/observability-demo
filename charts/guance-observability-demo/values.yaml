@@ -1,0 +1,90 @@
+replicaCount: 1
+
+image:
+  registry: ghcr.io
+  owner: guancedemo
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# This Secret must exist before installation. The chart never creates credentials.
+existingSecret: guance-observability-demo
+secretKeys:
+  mysqlPassword: mysql-password
+  mysqlRootPassword: mysql-root-password
+  controlToken: demo-control-token
+
+environment: demo
+
+observability:
+  project: mall-demo
+
+# ClusterIP is portable across Kind, EKS and kubeadm. The EKS workshop uses
+# values-eks.yaml to expose only the Gateway through an AWS load balancer.
+gateway:
+  service:
+    type: ClusterIP
+    annotations: {}
+
+mysql:
+  image: mysql:8.4
+  database: selfheal
+  user: selfheal
+
+redis:
+  image: redis:7.4-alpine
+
+rum:
+  enabled: false
+  applicationId: ""
+  service: mall-h5
+
+guanceConsole:
+  url: https://console.guance.com
+  workspaceId: ""
+
+logViewer:
+  enabled: true
+  tailLines: 240
+  sinceSeconds: 600
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: guance-demo.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  java:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  mysql:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  redis:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
