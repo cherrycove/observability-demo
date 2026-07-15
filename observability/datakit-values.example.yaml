@@ -5,7 +5,7 @@ datakit:
   dataway_secret_enabled: true
   dataway_secret_name: datakit-dataway-secret
   dataway_secret_key: ENV_DATAWAY
-  cluster_name_k8s: guance-observability-demo
+  cluster_name_k8s: observability-demo
   global_tags: host=__datakit_hostname,host_ip=__datakit_ip,project=mall-demo
   default_enabled_inputs: statsd,dk,cpu,disk,diskio,mem,swap,system,hostobject,net,host_processes,container,kubernetesprometheus,ddtrace,profile,rum
   http_listen: 0.0.0.0:9529

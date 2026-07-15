@@ -21,18 +21,18 @@ public class InventoryServiceApplication {
       for (String sku :
           List.of(
               "sku-1001",
-              "guance-infra-monitor",
-              "guance-logs",
-              "guance-log-long-retention",
-              "guance-network",
-              "guance-apm-llm",
-              "guance-synthetic",
-              "guance-rum",
-              "guance-session-replay",
-              "guance-task-call",
-              "guance-report",
-              "guance-sensitive-scan",
-              "guance-data-forward")) {
+              "demo-infra-monitor",
+              "demo-logs",
+              "demo-log-long-retention",
+              "demo-network",
+              "demo-apm-llm",
+              "demo-synthetic",
+              "demo-rum",
+              "demo-session-replay",
+              "demo-task-call",
+              "demo-report",
+              "demo-sensitive-scan",
+              "demo-data-forward")) {
         String key = "stock:" + sku;
         Boolean exists = redisTemplate.hasKey(key);
         if (!Boolean.TRUE.equals(exists)) {

@@ -130,8 +130,8 @@ class DemoController {
   private final String rumEnv;
   private final String rumVersion;
   private final String rumService;
-  private final String guanceConsoleUrl;
-  private final String guanceWorkspaceId;
+  private final String observabilityConsoleUrl;
+  private final String observabilityWorkspaceId;
   private final boolean kubernetesLogReaderEnabled;
   private final BackendLogReader backendLogReader;
 
@@ -148,10 +148,10 @@ class DemoController {
       @Value("${rum.env:${DD_ENV:demo}}") String rumEnv,
       @Value("${rum.version:${DD_VERSION:1.0.0}}") String rumVersion,
       @Value("${rum.service:mall-h5}") String rumService,
-      @Value("${demo.guance-console-url:https://ap1-console.truewatch.com}")
-          String guanceConsoleUrl,
-      @Value("${demo.guance-workspace-id:}") String guanceWorkspaceId,
-      @Value("${demo.log-directory:/var/log/guance-observability-demo}") String logDirectory,
+      @Value("${demo.observability-console-url:https://ap1-console.truewatch.com}")
+          String observabilityConsoleUrl,
+      @Value("${demo.observability-workspace-id:}") String observabilityWorkspaceId,
+      @Value("${demo.log-directory:/var/log/observability-demo}") String logDirectory,
       @Value("${demo.kubernetes-log-reader.enabled:true}") boolean kubernetesLogReaderEnabled,
       @Value("${demo.kubernetes-log-reader.tail-lines:240}") int kubernetesLogTailLines,
       @Value("${demo.kubernetes-log-reader.since-seconds:600}") int kubernetesLogSinceSeconds) {
@@ -167,10 +167,11 @@ class DemoController {
     this.rumEnv = defaultIfBlank(rumEnv, "demo");
     this.rumVersion = defaultIfBlank(rumVersion, "1.0.0");
     this.rumService = defaultIfBlank(rumService, "mall-h5");
-    this.guanceConsoleUrl =
+    this.observabilityConsoleUrl =
         trimTrailingSlash(
-            defaultIfBlank(guanceConsoleUrl, "https://ap1-console.truewatch.com"));
-    this.guanceWorkspaceId = guanceWorkspaceId == null ? "" : guanceWorkspaceId.trim();
+            defaultIfBlank(observabilityConsoleUrl, "https://ap1-console.truewatch.com"));
+    this.observabilityWorkspaceId =
+        observabilityWorkspaceId == null ? "" : observabilityWorkspaceId.trim();
     this.kubernetesLogReaderEnabled = kubernetesLogReaderEnabled;
     this.backendLogReader =
         new CompositeBackendLogReader(
@@ -187,9 +188,9 @@ class DemoController {
     response.put("kubernetesLogReaderEnabled", kubernetesLogReaderEnabled);
     response.put("controlTokenRequired", true);
     response.put("project", project);
-    if (!guanceWorkspaceId.isBlank()) {
-      response.put("guanceConsoleUrl", guanceConsoleUrl);
-      response.put("workspaceId", guanceWorkspaceId);
+    if (!observabilityWorkspaceId.isBlank()) {
+      response.put("observabilityConsoleUrl", observabilityConsoleUrl);
+      response.put("workspaceId", observabilityWorkspaceId);
     }
     return response;
   }

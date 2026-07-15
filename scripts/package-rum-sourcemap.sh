@@ -4,7 +4,7 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 assets_dir="${root_dir}/order-service/src/main/resources/static/assets"
 output_dir="${root_dir}/dist/rum-sourcemap"
-archive="${root_dir}/dist/guance-observability-demo-rum-sourcemap.zip"
+archive="${root_dir}/dist/observability-demo-rum-sourcemap.zip"
 
 rm -rf "${output_dir}"
 mkdir -p "${output_dir}/assets/src"

@@ -42,17 +42,17 @@ jobs:
         run: docker compose --env-file .env.example config >/dev/null
       - name: Lint and render Helm
         run: |
-          helm lint charts/guance-observability-demo
-          helm lint charts/guance-observability-demo --values charts/guance-observability-demo/values-eks.yaml
-          helm template demo charts/guance-observability-demo --namespace guance-demo >/tmp/rendered.yaml
+          helm lint charts/observability-demo
+          helm lint charts/observability-demo --values charts/observability-demo/values-eks.yaml
+          helm template demo charts/observability-demo --namespace observability-demo >/tmp/rendered.yaml
           docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 -strict -summary </tmp/rendered.yaml
-          helm template demo charts/guance-observability-demo \
-            --namespace guance-demo \
-            --values charts/guance-observability-demo/values-eks.yaml \
+          helm template demo charts/observability-demo \
+            --namespace observability-demo \
+            --values charts/observability-demo/values-eks.yaml \
             >/tmp/eks-rendered.yaml
           grep -A20 'component: gateway-service' /tmp/eks-rendered.yaml | grep -q 'type: LoadBalancer'
           docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 -strict -summary </tmp/eks-rendered.yaml
-          helm repo add datakit https://pubrepo.guance.com/chartrepo/datakit
+          helm repo add datakit https://pubrepo.truewatch.com/chartrepo/datakit
           helm repo update
           helm template datakit datakit/datakit \
             --version 2.5.0 \
@@ -102,45 +102,45 @@ jobs:
       - uses: actions/checkout@v4
       - uses: helm/kind-action@v1
         with:
-          cluster_name: guance-demo
+          cluster_name: observability-demo
       - uses: azure/setup-helm@v4
         with:
           version: v3.17.3
       - name: Build and load images
         run: |
           for service in gateway order inventory payment; do
-            docker build -f "${service}-service/Dockerfile" -t "docker.io/library/guance-observability-demo-${service}-service:ci" .
-            kind load docker-image --name guance-demo "docker.io/library/guance-observability-demo-${service}-service:ci"
+            docker build -f "${service}-service/Dockerfile" -t "docker.io/library/observability-demo-${service}-service:ci" .
+            kind load docker-image --name observability-demo "docker.io/library/observability-demo-${service}-service:ci"
           done
       - name: Install demo
         run: |
-          helm install demo charts/guance-observability-demo \
-            --namespace guance-demo \
+          helm install demo charts/observability-demo \
+            --namespace observability-demo \
             --create-namespace \
             --set image.registry=docker.io \
             --set image.owner=library \
             --set image.tag=ci \
             --set image.pullPolicy=Never
-          for deployment in $(kubectl -n guance-demo get deployments -o name); do
-            kubectl -n guance-demo rollout status "${deployment}" --timeout=8m
+          for deployment in $(kubectl -n observability-demo get deployments -o name); do
+            kubectl -n observability-demo rollout status "${deployment}" --timeout=8m
           done
-          secret_name=demo-guance-observability-demo
-          secret_before="$(kubectl -n guance-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
+          secret_name=demo-observability-demo
+          secret_before="$(kubectl -n observability-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
           test -n "${secret_before}"
-          helm upgrade demo charts/guance-observability-demo \
-            --namespace guance-demo \
+          helm upgrade demo charts/observability-demo \
+            --namespace observability-demo \
             --set image.registry=docker.io \
             --set image.owner=library \
             --set image.tag=ci \
             --set image.pullPolicy=Never
-          secret_after="$(kubectl -n guance-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
+          secret_after="$(kubectl -n observability-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
           test "${secret_before}" = "${secret_after}"
       - name: Verify security and behavior
         run: |
-          export DEMO_CONTROL_TOKEN="$(kubectl -n guance-demo get secret demo-guance-observability-demo \
+          export DEMO_CONTROL_TOKEN="$(kubectl -n observability-demo get secret demo-observability-demo \
             -o jsonpath='{.data.demo-control-token}' | base64 --decode)"
           test -n "${DEMO_CONTROL_TOKEN}"
-          kubectl -n guance-demo port-forward svc/demo-guance-observability-demo-gateway-service 8080:80 >/tmp/port-forward.log 2>&1 &
+          kubectl -n observability-demo port-forward svc/demo-observability-demo-gateway-service 8080:80 >/tmp/port-forward.log 2>&1 &
           if ! curl --fail --silent \
             --retry 30 --retry-delay 2 --retry-all-errors --retry-max-time 60 \
             http://127.0.0.1:8080/api/demo/config >/dev/null; then
@@ -148,11 +148,11 @@ jobs:
             exit 1
           fi
           scripts/smoke-test.sh
-          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.securityContext.runAsUser}')" = "10001"
-          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
-          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=mysql -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
-          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.containers[0].env[?(@.name=="DD_TAGS")].value}')" = "project:mall-demo"
-          test "$(kubectl -n guance-demo get pod -l app.kubernetes.io/component=gateway-service -o jsonpath='{.items[0].spec.automountServiceAccountToken}')" = "false"
-          kubectl -n guance-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.annotations.datakit/logs}' | grep -q java-selfheal-demo.p
-          kubectl auth can-i get pods/log --as system:serviceaccount:guance-demo:demo-guance-observability-demo-log-reader -n guance-demo | grep -q yes
-          kubectl auth can-i get secrets --as system:serviceaccount:guance-demo:demo-guance-observability-demo-log-reader -n guance-demo | grep -q no
+          test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.securityContext.runAsUser}')" = "10001"
+          test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
+          test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=mysql -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
+          test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.containers[0].env[?(@.name=="DD_TAGS")].value}')" = "project:mall-demo"
+          test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=gateway-service -o jsonpath='{.items[0].spec.automountServiceAccountToken}')" = "false"
+          kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.annotations.datakit/logs}' | grep -q java-selfheal-demo.p
+          kubectl auth can-i get pods/log --as system:serviceaccount:observability-demo:demo-observability-demo-log-reader -n observability-demo | grep -q yes
+          kubectl auth can-i get secrets --as system:serviceaccount:observability-demo:demo-observability-demo-log-reader -n observability-demo | grep -q no

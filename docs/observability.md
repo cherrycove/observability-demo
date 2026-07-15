@@ -3,7 +3,7 @@
 | 信号 | 来源 | 关键关联字段 |
 | --- | --- | --- |
 | Kubernetes/容器指标 | DataKit container、kubernetesprometheus | `project`、`cluster_name_k8s`、`pod_name`、`container_name` |
-| APM Trace | Guance DDTrace Java Agent | `project`、`trace_id`、`span_id`、`service`、`env`、`version` |
+| APM Trace | DDTrace Java Agent | `project`、`trace_id`、`span_id`、`service`、`env`、`version` |
 | 应用日志 | stdout + `datakit/logs` Annotation | Trace 字段、业务字段、故障字段、进程/Pod/容器字段 |
 | JVM 指标 | Java Agent → StatsD `8125` | `project`、`service`、`env`、JVM measurement |
 | Profiling | Java Agent → Profile `9529` | `project`、`service`、`env`、`version` |

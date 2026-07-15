@@ -1,4 +1,4 @@
-name: guance-observability-demo
+name: observability-demo
 
 x-java-environment: &java-environment
   DD_ENV: ${DD_ENV:-demo}
@@ -64,12 +64,12 @@ services:
       DD_SERVICE: inventory-service
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      LOGGING_FILE_NAME: /var/log/guance-observability-demo/inventory-service.log
+      LOGGING_FILE_NAME: /var/log/observability-demo/inventory-service.log
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - demo-logs:/var/log/guance-observability-demo
+      - demo-logs:/var/log/observability-demo
 
   payment-service:
     <<: *java-service
@@ -79,9 +79,9 @@ services:
     environment:
       <<: *java-environment
       DD_SERVICE: payment-service
-      LOGGING_FILE_NAME: /var/log/guance-observability-demo/payment-service.log
+      LOGGING_FILE_NAME: /var/log/observability-demo/payment-service.log
     volumes:
-      - demo-logs:/var/log/guance-observability-demo
+      - demo-logs:/var/log/observability-demo
 
   order-service:
     <<: *java-service
@@ -99,14 +99,14 @@ services:
       ORDER_URL: http://order-service:8080
       DEMO_CONTROL_TOKEN: ${DEMO_CONTROL_TOKEN:?copy .env.example to .env and set DEMO_CONTROL_TOKEN}
       KUBERNETES_LOG_READER_ENABLED: "false"
-      DEMO_LOG_DIRECTORY: /var/log/guance-observability-demo
+      DEMO_LOG_DIRECTORY: /var/log/observability-demo
       RUM_ENABLED: ${RUM_ENABLED:-false}
       RUM_APPLICATION_ID: ${RUM_APPLICATION_ID:-}
       RUM_SERVICE: mall-h5
       DATAKIT_RUM_URL: http://${DATAKIT_HOST:-host.docker.internal}:9529
-      GUANCE_CONSOLE_URL: ${GUANCE_CONSOLE_URL:-https://ap1-console.truewatch.com}
-      GUANCE_WORKSPACE_ID: ${GUANCE_WORKSPACE_ID:-}
-      LOGGING_FILE_NAME: /var/log/guance-observability-demo/order-service.log
+      OBSERVABILITY_CONSOLE_URL: ${OBSERVABILITY_CONSOLE_URL:-https://ap1-console.truewatch.com}
+      OBSERVABILITY_WORKSPACE_ID: ${OBSERVABILITY_WORKSPACE_ID:-}
+      LOGGING_FILE_NAME: /var/log/observability-demo/order-service.log
     depends_on:
       mysql:
         condition: service_healthy
@@ -115,7 +115,7 @@ services:
       payment-service:
         condition: service_started
     volumes:
-      - demo-logs:/var/log/guance-observability-demo
+      - demo-logs:/var/log/observability-demo
 
   gateway-service:
     <<: *java-service
@@ -126,14 +126,14 @@ services:
       <<: *java-environment
       DD_SERVICE: gateway-service
       ORDER_URL: http://order-service:8080
-      LOGGING_FILE_NAME: /var/log/guance-observability-demo/gateway-service.log
+      LOGGING_FILE_NAME: /var/log/observability-demo/gateway-service.log
     depends_on:
       order-service:
         condition: service_started
     ports:
       - ${DEMO_PORT:-8080}:8080
     volumes:
-      - demo-logs:/var/log/guance-observability-demo
+      - demo-logs:/var/log/observability-demo
 
 volumes:
   demo-logs: {}

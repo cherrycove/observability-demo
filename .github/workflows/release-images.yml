@@ -29,7 +29,7 @@ jobs:
       - name: Normalize image name
         id: image
         shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/guance-observability-demo-${{ matrix.service }}-service" >> "$GITHUB_OUTPUT"
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/observability-demo-${{ matrix.service }}-service" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         with:

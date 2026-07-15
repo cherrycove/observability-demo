@@ -1688,7 +1688,7 @@
                 <h2 data-i18n="parentTraceLinkPanel">链路详情</h2>
                 <p id="traceLinkHint" data-i18n="parentTraceLinkPending">购买成功并匹配到 trace_id 后，可查看对应链路详情。</p>
               </div>
-              <a id="guanceTraceLink" class="trace-link disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true" data-i18n="parentTraceLinkOpen">打开链路详情</a>
+              <a id="observabilityTraceLink" class="trace-link disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true" data-i18n="parentTraceLinkOpen">打开链路详情</a>
             </section>
           </div>
         </aside>
@@ -1718,7 +1718,7 @@
     ];
     const compactViewport = window.matchMedia('(max-width: 1199px)');
     const initialUrl = new URL(window.location.href);
-    const CONTROL_TOKEN_STORAGE_KEY = 'guance-demo-control-token';
+    const CONTROL_TOKEN_STORAGE_KEY = 'observability-demo-control-token';
     const FAULT_LAYER_GROUPS = [
       { id: 'frontend', layers: ['frontend'], labelKey: 'layerFrontend' },
       { id: 'backend', layers: ['service'], labelKey: 'layerBackend' },
@@ -1784,7 +1784,7 @@
       inventoryHealth: document.getElementById('inventoryHealth'),
       paymentHealth: document.getElementById('paymentHealth'),
       traceLinkHint: document.getElementById('traceLinkHint'),
-      guanceTraceLink: document.getElementById('guanceTraceLink'),
+      observabilityTraceLink: document.getElementById('observabilityTraceLink'),
       faultLayerTabs: document.getElementById('faultLayerTabs'),
       faultScenarioTabs: document.getElementById('faultScenarioTabs'),
       faultDetailTitle: document.getElementById('faultDetailTitle'),
@@ -2185,19 +2185,19 @@
         .filter(Boolean))];
     }
 
-    function buildGuanceTraceQuery(traceIds) {
+    function buildObservabilityTraceQuery(traceIds) {
       return normalizeTraceIds(traceIds)
         .map((traceId) => `trace_id:${traceId}`)
         .join(' OR ');
     }
 
-    function encodeGuanceTraceQuery(query) {
+    function encodeObservabilityTraceQuery(query) {
       return `b64-${btoa(query).replace(/=+$/, '')}`;
     }
 
-    function buildGuanceTraceUrl(traceIds) {
-      if (!state.demoConfig.guanceConsoleUrl || !state.demoConfig.workspaceId) return '';
-      const url = new URL('/tracing/link', state.demoConfig.guanceConsoleUrl);
+    function buildObservabilityTraceUrl(traceIds) {
+      if (!state.demoConfig.observabilityConsoleUrl || !state.demoConfig.workspaceId) return '';
+      const url = new URL('/tracing/link', state.demoConfig.observabilityConsoleUrl);
       Object.entries({
         lak: 'Tracing', activeName: 'LinkToTrackLink', w: state.demoConfig.workspaceId,
         time: '15m', mode: 'traceid', cols: 'time,trace_id,service,resource,duration',
@@ -2209,25 +2209,25 @@
       if (ids.length === 1) {
         url.searchParams.set('trace_id', ids[0]);
       }
-      const query = buildGuanceTraceQuery(ids);
+      const query = buildObservabilityTraceQuery(ids);
       if (query) {
-        url.searchParams.set('query', encodeGuanceTraceQuery(query));
+        url.searchParams.set('query', encodeObservabilityTraceQuery(query));
       }
       return url.toString();
     }
 
-    function updateGuanceTraceLink(traceIds) {
+    function updateObservabilityTraceLink(traceIds) {
       if (arguments.length > 0) {
         state.lastTraceIds = normalizeTraceIds(traceIds);
       }
       const ids = normalizeTraceIds(state.lastTraceIds);
       const hasTrace = ids.length > 0;
-      const traceUrl = hasTrace ? buildGuanceTraceUrl(ids) : '';
-      if (els.guanceTraceLink) {
-        els.guanceTraceLink.href = traceUrl || '#';
-        els.guanceTraceLink.dataset.copyTrace = traceUrl ? 'false' : 'true';
-        els.guanceTraceLink.classList.toggle('disabled', !hasTrace);
-        els.guanceTraceLink.setAttribute('aria-disabled', hasTrace ? 'false' : 'true');
+      const traceUrl = hasTrace ? buildObservabilityTraceUrl(ids) : '';
+      if (els.observabilityTraceLink) {
+        els.observabilityTraceLink.href = traceUrl || '#';
+        els.observabilityTraceLink.dataset.copyTrace = traceUrl ? 'false' : 'true';
+        els.observabilityTraceLink.classList.toggle('disabled', !hasTrace);
+        els.observabilityTraceLink.setAttribute('aria-disabled', hasTrace ? 'false' : 'true');
       }
       if (els.traceLinkHint) {
         if (!hasTrace) {
@@ -2280,7 +2280,7 @@
           if (!response.ok) continue;
           const traceId = pickTraceIdFromLogBody(logBody);
           if (traceId) {
-            if (lookupSeq === state.traceLookupSeq) updateGuanceTraceLink(traceId);
+            if (lookupSeq === state.traceLookupSeq) updateObservabilityTraceLink(traceId);
             return;
           }
         } catch (_) {}
@@ -2338,7 +2338,7 @@
         const { response, body } = await requestJson('/api/demo/config');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         state.demoConfig = body && typeof body === 'object' ? body : {};
-        updateGuanceTraceLink();
+        updateObservabilityTraceLink();
       } catch (error) {
         state.demoConfig = {};
         log(`Demo config: ${error.message}`, { status: 'warn' });
@@ -2371,7 +2371,7 @@
       renderFaultCatalog();
       renderActiveFault(state.faultMode);
       renderFaultHistory();
-      updateGuanceTraceLink();
+      updateObservabilityTraceLink();
       syncLanguageToShop();
       syncPreviewContext();
     }
@@ -2714,7 +2714,7 @@
         }
         const traceIds = normalizeTraceIds(payload.traceIds || body.traceIds || payload.traceId || body.traceId || body.trace_id);
         const lookupSeq = ++state.traceLookupSeq;
-        updateGuanceTraceLink(traceIds);
+        updateObservabilityTraceLink(traceIds);
         if (!traceIds.length) resolveTraceLinkFromOrder(body, payload, lookupSeq);
         refreshStatus();
         return;
@@ -2722,7 +2722,7 @@
 
       if (data.type === 'frontend-fault-triggered') {
         incrementActiveFaultRecordTrigger(payload.triggerId || '');
-        updateGuanceTraceLink([]);
+        updateObservabilityTraceLink([]);
         if (els.traceLinkHint) {
           els.traceLinkHint.textContent = payload.scenario?.id === 'frontend_slow_resource'
             ? t('parentTraceLinkSlowPending')
@@ -2765,13 +2765,13 @@
       if (!button || button.disabled) return;
       updateFaultScenario(button.dataset.value);
     });
-    if (els.guanceTraceLink) {
-      els.guanceTraceLink.addEventListener('click', async (event) => {
-        if (els.guanceTraceLink.classList.contains('disabled')) {
+    if (els.observabilityTraceLink) {
+      els.observabilityTraceLink.addEventListener('click', async (event) => {
+        if (els.observabilityTraceLink.classList.contains('disabled')) {
           event.preventDefault();
           return;
         }
-        if (els.guanceTraceLink.dataset.copyTrace === 'true') {
+        if (els.observabilityTraceLink.dataset.copyTrace === 'true') {
           event.preventDefault();
           await navigator.clipboard.writeText(normalizeTraceIds(state.lastTraceIds).join('\n'));
         }

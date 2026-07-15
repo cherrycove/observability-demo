@@ -1,6 +1,6 @@
 ARG MAVEN_BASE_IMAGE=docker.io/library/maven:3.9.9-eclipse-temurin-17
 ARG JRE_BASE_IMAGE=docker.io/library/eclipse-temurin:17-jre-jammy
-ARG DD_JAVA_AGENT_IMAGE=pubrepo.guance.com/datakit-operator/dd-lib-java-init:v1.55.10-ext
+ARG DD_JAVA_AGENT_IMAGE=pubrepo.truewatch.com/datakit-operator/dd-lib-java-init:v1.55.10-ext
 
 FROM ${DD_JAVA_AGENT_IMAGE} AS java_agent
 
@@ -25,7 +25,7 @@ WORKDIR /app
 COPY --from=build /workspace/order-service/target/order-service-1.0.0.jar /app/app.jar
 COPY --from=build /workspace/dd-java-agent.jar /app/dd-java-agent.jar
 RUN groupadd --system app && useradd --system --gid app --uid 10001 app && \
-    mkdir -p /var/log/guance-observability-demo && chown -R app:app /app /var/log/guance-observability-demo
+    mkdir -p /var/log/observability-demo && chown -R app:app /app /var/log/observability-demo
 USER app
 EXPOSE 8080
 ENTRYPOINT ["java", "-javaagent:/app/dd-java-agent.jar", "-jar", "/app/app.jar"]

@@ -1,17 +1,17 @@
-title = "guance-observability-demo secret rules"
+title = "observability-demo secret rules"
 
 [extend]
 useDefault = true
 
 [[rules]]
-id = "guance-client-token"
-description = "Guance client token"
+id = "public-dataway-client-token"
+description = "Public DataWay client token"
 regex = '''tkn_[A-Za-z0-9]{16,}'''
 keywords = ["tkn_"]
 
 [[rules]]
-id = "guance-workspace-id"
-description = "Guance workspace identifier must not be committed with a real value"
+id = "observability-workspace-id"
+description = "Observability workspace identifier must not be committed with a real value"
 regex = '''wksp_[A-Za-z0-9]{16,}'''
 keywords = ["wksp_"]
 

@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "guance-observability-demo.fullname" . }}-mysql
+  name: {{ include "observability-demo.fullname" . }}-mysql
   labels:
-    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    {{- include "observability-demo.labels" . | nindent 4 }}
     app.kubernetes.io/component: mysql
   annotations:
-    demo.guance.com/data-policy: ephemeral-demo-data
+    observability-demo/data-policy: ephemeral-demo-data
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "guance-observability-demo.selectorLabels" . | nindent 6 }}
+      {{- include "observability-demo.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: mysql
   template:
     metadata:
       labels:
-        {{- include "guance-observability-demo.selectorLabels" . | nindent 8 }}
+        {{- include "observability-demo.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: mysql
         project: {{ required "observability.project is required" .Values.observability.project | quote }}
       annotations:
-        demo.guance.com/data-policy: ephemeral-demo-data
+        observability-demo/data-policy: ephemeral-demo-data
     spec:
-      serviceAccountName: {{ include "guance-observability-demo.fullname" . }}-app
+      serviceAccountName: {{ include "observability-demo.fullname" . }}-app
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -47,12 +47,12 @@ spec:
             - name: MYSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "guance-observability-demo.secretName" . }}
+                  name: {{ include "observability-demo.secretName" . }}
                   key: {{ .Values.secretKeys.mysqlPassword }}
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "guance-observability-demo.secretName" . }}
+                  name: {{ include "observability-demo.secretName" . }}
                   key: {{ .Values.secretKeys.mysqlRootPassword }}
           ports:
             - name: mysql
@@ -74,14 +74,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "guance-observability-demo.fullname" . }}-mysql
+  name: {{ include "observability-demo.fullname" . }}-mysql
   labels:
-    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    {{- include "observability-demo.labels" . | nindent 4 }}
     app.kubernetes.io/component: mysql
 spec:
   type: ClusterIP
   selector:
-    {{- include "guance-observability-demo.selectorLabels" . | nindent 4 }}
+    {{- include "observability-demo.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: mysql
   ports:
     - name: mysql
@@ -91,28 +91,28 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "guance-observability-demo.fullname" . }}-redis
+  name: {{ include "observability-demo.fullname" . }}-redis
   labels:
-    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    {{- include "observability-demo.labels" . | nindent 4 }}
     app.kubernetes.io/component: redis
   annotations:
-    demo.guance.com/data-policy: ephemeral-demo-data
+    observability-demo/data-policy: ephemeral-demo-data
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "guance-observability-demo.selectorLabels" . | nindent 6 }}
+      {{- include "observability-demo.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: redis
   template:
     metadata:
       labels:
-        {{- include "guance-observability-demo.selectorLabels" . | nindent 8 }}
+        {{- include "observability-demo.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis
         project: {{ required "observability.project is required" .Values.observability.project | quote }}
       annotations:
-        demo.guance.com/data-policy: ephemeral-demo-data
+        observability-demo/data-policy: ephemeral-demo-data
     spec:
-      serviceAccountName: {{ include "guance-observability-demo.fullname" . }}-app
+      serviceAccountName: {{ include "observability-demo.fullname" . }}-app
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -155,14 +155,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "guance-observability-demo.fullname" . }}-redis
+  name: {{ include "observability-demo.fullname" . }}-redis
   labels:
-    {{- include "guance-observability-demo.labels" . | nindent 4 }}
+    {{- include "observability-demo.labels" . | nindent 4 }}
     app.kubernetes.io/component: redis
 spec:
   type: ClusterIP
   selector:
-    {{- include "guance-observability-demo.selectorLabels" . | nindent 4 }}
+    {{- include "observability-demo.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: redis
   ports:
     - name: redis

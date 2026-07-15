@@ -1,6 +1,6 @@
 apiVersion: v2
-name: guance-observability-demo
-description: A deliberately faultable Java observability demo for Guance and DataKit
+name: observability-demo
+description: A deliberately faultable Java microservice observability demo for DataKit
 type: application
 version: 0.1.0
 appVersion: "1.0.0"

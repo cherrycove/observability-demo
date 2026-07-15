@@ -3,25 +3,25 @@ The Gateway is being exposed through a Kubernetes LoadBalancer.
 
 Wait for the external address:
 
-  kubectl -n {{ .Release.Namespace }} get svc {{ include "guance-observability-demo.fullname" . }}-gateway-service --watch
+  kubectl -n {{ .Release.Namespace }} get svc {{ include "observability-demo.fullname" . }}-gateway-service --watch
 
 Then visit the EXTERNAL-IP hostname over HTTP. MySQL, Redis and the internal Java services remain private.
 {{- else }}
 The demo is internal-only. Open it with:
 
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "guance-observability-demo.fullname" . }}-gateway-service 8080:80
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "observability-demo.fullname" . }}-gateway-service 8080:80
 
 Then visit http://127.0.0.1:8080/ . MySQL and Redis use emptyDir and are intentionally ephemeral.
 {{- end }}
 
 {{- if not .Values.existingSecret }}
 Helm generated the MySQL credentials and demo control token in Secret
-{{ include "guance-observability-demo.secretName" . }}. Existing values are preserved on upgrade.
+{{ include "observability-demo.secretName" . }}. Existing values are preserved on upgrade.
 {{- else }}
-The demo is using the pre-created Secret {{ include "guance-observability-demo.secretName" . }}.
+The demo is using the pre-created Secret {{ include "observability-demo.secretName" . }}.
 {{- end }}
 
 Print the control token when the web page asks for it:
 
-  printf '%s\n' "$(kubectl -n {{ .Release.Namespace }} get secret {{ include "guance-observability-demo.secretName" . }} \
+  printf '%s\n' "$(kubectl -n {{ .Release.Namespace }} get secret {{ include "observability-demo.secretName" . }} \
     -o jsonpath='{.data.{{ .Values.secretKeys.controlToken }}}' | base64 --decode)"

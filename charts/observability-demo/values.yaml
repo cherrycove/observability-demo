@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   registry: ghcr.io
-  owner: guancedemo
+  owner: cherrycove
   tag: latest
   pullPolicy: Always
 
@@ -43,7 +43,7 @@ rum:
   applicationId: ""
   service: mall-h5
 
-guanceConsole:
+observabilityConsole:
   url: https://ap1-console.truewatch.com
   workspaceId: ""
 
@@ -57,7 +57,7 @@ ingress:
   className: ""
   annotations: {}
   hosts:
-    - host: guance-demo.local
+    - host: observability-demo.local
       paths:
         - path: /
           pathType: Prefix

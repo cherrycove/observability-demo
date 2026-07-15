@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>demo.guance</groupId>
-        <artifactId>guance-observability-demo</artifactId>
+        <groupId>demo.observability</groupId>
+        <artifactId>observability-demo</artifactId>
         <version>1.0.0</version>
     </parent>
 
