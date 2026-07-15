@@ -3,6 +3,72 @@
   const STORAGE_KEY = 'mall-selfheal-demo-lang';
   const SUPPORTED_LANGUAGES = new Set(['zh', 'en']);
 
+  function escapeSvgText(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+  }
+
+  function createBookCoverDataUri({ label, titleLines, titleFontSize, subtitle, footer, accent }) {
+    const title = titleLines
+      .map((line, index) => `
+        <text x="28" y="${154 + (index * 54)}" fill="#24152f" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="${titleFontSize}" font-weight="800">${escapeSvgText(line)}</text>
+      `)
+      .join('');
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" role="img">
+        <defs>
+          <linearGradient id="cover-bg" x1="18" y1="382" x2="282" y2="18" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#fff8f3"/>
+            <stop offset="1" stop-color="#fff0f6"/>
+          </linearGradient>
+          <linearGradient id="cover-accent" x1="28" y1="0" x2="272" y2="0" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#ff7a00"/>
+            <stop offset="0.5" stop-color="${accent}"/>
+            <stop offset="1" stop-color="#d730ff"/>
+          </linearGradient>
+        </defs>
+        <rect width="300" height="400" rx="18" fill="url(#cover-bg)"/>
+        <rect x="14" y="14" width="272" height="372" rx="13" fill="none" stroke="url(#cover-accent)" stroke-width="4"/>
+        <rect x="28" y="34" width="244" height="8" rx="4" fill="url(#cover-accent)"/>
+        <text x="28" y="78" fill="#9b3d56" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="2">${escapeSvgText(label)}</text>
+        ${title}
+        <text x="28" y="276" fill="#684f70" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="16">${escapeSvgText(subtitle)}</text>
+        <g transform="translate(28 300)" fill="none" stroke="url(#cover-accent)" stroke-width="4" stroke-linecap="round">
+          <circle cx="12" cy="28" r="8" fill="#fff"/>
+          <circle cx="64" cy="8" r="8" fill="#fff"/>
+          <circle cx="118" cy="34" r="8" fill="#fff"/>
+          <circle cx="180" cy="14" r="8" fill="#fff"/>
+          <path d="M20 25 56 11M72 11l38 20M126 31l46-14"/>
+        </g>
+        <text x="28" y="365" fill="#9b3d56" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" font-weight="700">${escapeSvgText(footer)}</text>
+      </svg>
+    `;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.replace(/\s+/g, ' ').trim())}`;
+  }
+
+  const bookCovers = Object.freeze({
+    zh: createBookCoverDataUri({
+      label: 'MALL DEMO',
+      titleLines: ['可观测性', '工程'],
+      titleFontSize: 38,
+      subtitle: '指标 · 日志 · 链路 · 用户体验',
+      footer: '可观测性实践演示版',
+      accent: '#ff3856',
+    }),
+    en: createBookCoverDataUri({
+      label: 'MALL DEMO',
+      titleLines: ['OBSERVABILITY', 'ENGINEERING'],
+      titleFontSize: 28,
+      subtitle: 'Metrics · Logs · Traces · RUM',
+      footer: 'OBSERVABILITY DEMO EDITION',
+      accent: '#ff3856',
+    }),
+  });
+
   const products = [
     {
       sku: 'sku-1001',
@@ -10,7 +76,7 @@
       amountCent: 9900,
       zh: {
         name: '可观测性工程',
-        cover: 'assets/observability-engineering-zh.png',
+        cover: bookCovers.zh,
         coverAlt: '《可观测性工程》中文版封面',
         badge: '技术书籍',
         tagline: '从指标、日志、链路、事件到协作流程，系统理解现代可观测性实践。',
@@ -22,7 +88,7 @@
       },
       en: {
         name: 'Observability Engineering',
-        cover: 'assets/observability-engineering-en.png',
+        cover: bookCovers.en,
         coverAlt: 'Observability Engineering English book cover',
         badge: 'Technical book',
         tagline: 'A practical guide to modern observability across telemetry, debugging, and team workflows.',

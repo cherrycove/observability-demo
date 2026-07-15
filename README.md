@@ -50,30 +50,61 @@ docker compose down --volumes
 
 ## EKS Workshop：分步安装 DataKit 与 Demo
 
-DataKit 和应用保持为两个独立 Helm Release。教程会展示 DataKit 的真实配置；应用则直接拉取 `GuanceDemo` 发布的四个公开 GHCR `latest` 镜像，不需要 Maven、Docker build、镜像仓库登录或 owner/tag 参数。正式复现和问题排查仍可改用不可变的 SemVer tag。
+DataKit 和应用保持为两个独立 Helm Release。教程会展示 DataKit 的真实配置；应用直接拉取公开 GHCR `latest` 镜像，不需要 Maven、Docker build 或镜像仓库登录。正式复现和问题排查仍可改用不可变的 SemVer tag。
 
-开始前确认 `kubectl` 已连接到目标 EKS 集群：
+### 0. 准备信息并声明参数
+
+开始前先准备 DataWay URL，并在观测云创建 Web 类型的 RUM 应用、取得 Application ID。然后集中声明本次安装使用的参数；后续命令无需再修改：
 
 ```bash
+export AWS_REGION="ap-northeast-2"
+export EKS_CLUSTER_NAME="guance-observability-demo"
+
+# 个人 GitHub 验证阶段使用；迁移到 GuanceDemo 后改为 guancedemo。
+export IMAGE_OWNER="cherrycove"
+
+# DataWay URL 包含敏感 token，使用隐藏输入，避免写入 Shell 历史。
+read -rsp 'DataWay URL: ' DATAWAY_URL && export DATAWAY_URL && echo
+
+# RUM Application ID 非敏感，不需要填写 Public DataWay client token。
+read -rp 'RUM Application ID: ' RUM_APPLICATION_ID && export RUM_APPLICATION_ID
+
+read -rp 'TrueWatch Workspace ID: ' TRUEWATCH_WORKSPACE_ID && export TRUEWATCH_WORKSPACE_ID
+```
+
+`project=mall-demo`、镜像标签 `latest`、DataKit namespace `datakit` 和应用 namespace `guance-demo` 是 Demo 固定值，不需要用户声明。
+
+### 1. 连接 EKS
+
+`kubectl` 尚未连接目标集群时执行：
+
+```bash
+aws eks update-kubeconfig \
+  --region "$AWS_REGION" \
+  --name "$EKS_CLUSTER_NAME"
+
+kubectl config current-context
 kubectl get nodes
 ```
 
-### 1. 配置并安装 DataKit
+如果 `kubectl get nodes` 已经能显示目标 EKS 的 Ready 节点，可以跳过 `update-kubeconfig`。
 
-在观测云工作空间的「集成 → DataKit」页面复制完整 DataWay URL。它包含敏感 token，只在终端的隐藏输入中填写：
+### 2. 配置并安装 DataKit
+
+安装官方 DataKit Chart，并通过前面声明的参数传入 DataWay URL 和 EKS 集群名：
 
 ```bash
 helm repo add datakit https://pubrepo.guance.com/chartrepo/datakit
 helm repo update
 
-read -rsp 'DataWay URL: ' DATAWAY_URL && echo
 helm upgrade --install datakit datakit/datakit \
   --version 2.5.0 \
   --namespace datakit \
   --create-namespace \
   -f observability/datakit-values.example.yaml \
   --set-string datakit.dataway_url="$DATAWAY_URL" \
-  --set-string datakit.cluster_name_k8s="$(kubectl config current-context | awk -F/ '{print $NF}')"
+  --set-string datakit.cluster_name_k8s="$EKS_CLUSTER_NAME"
+
 unset DATAWAY_URL
 ```
 
@@ -86,48 +117,32 @@ kubectl -n datakit logs daemonset/datakit --tail=100
 
 如果这个 DataKit 还采集同一集群中的其他项目，应移除全局 `project`，只给 Demo workload 和应用信号设置该标签。参考 [DataKit Helm](https://docs.guance.com/datakit/datakit-helm/) 与 [Kubernetes 部署](https://docs.guance.com/en/datakit/datakit-daemonset-deploy/)。
 
-### 2. 创建 RUM 应用
-
-在观测云创建 Web 类型的 RUM 应用，复制非敏感的 Application ID。RUM 使用同源 `/rum-proxy` 转发到节点 DataKit，不需要 Public DataWay client token。
-
-```bash
-read -rp 'RUM Application ID: ' RUM_APPLICATION_ID
-```
-
-### 3. 创建 Demo 内部 Secret
-
-MySQL 密码和故障控制口令由命令随机生成，用户无需填写：
-
-```bash
-kubectl create namespace guance-demo
-kubectl -n guance-demo create secret generic guance-observability-demo \
-  --from-literal=mysql-password="$(openssl rand -hex 16)" \
-  --from-literal=mysql-root-password="$(openssl rand -hex 16)" \
-  --from-literal=demo-control-token="$(openssl rand -hex 16)"
-```
-
-这些 Secret 只用于一次性的 Demo 数据和受保护的故障操作，不会提交到 Git。
-
-### 4. 使用公开镜像部署应用
+### 3. 使用公开镜像部署应用
 
 EKS overlay 只把 Gateway 暴露为 `LoadBalancer`；order、inventory、payment、MySQL 和 Redis 仍然是集群内部服务。
 
 ```bash
 helm upgrade --install demo charts/guance-observability-demo \
   --namespace guance-demo \
+  --create-namespace \
   -f charts/guance-observability-demo/values-eks.yaml \
+  --set-string image.owner="$IMAGE_OWNER" \
   --set rum.enabled=true \
-  --set-string rum.applicationId="$RUM_APPLICATION_ID"
-unset RUM_APPLICATION_ID
+  --set-string rum.applicationId="$RUM_APPLICATION_ID" \
+  --set-string guanceConsole.workspaceId="$TRUEWATCH_WORKSPACE_ID"
+
+unset IMAGE_OWNER RUM_APPLICATION_ID TRUEWATCH_WORKSPACE_ID
 
 for deployment in $(kubectl -n guance-demo get deployments -o name); do
   kubectl -n guance-demo rollout status "$deployment" --timeout=8m
 done
 ```
 
-Chart 默认拉取 `ghcr.io/guancedemo/guance-observability-demo-{gateway,order,inventory,payment}-service:latest`，并使用 `imagePullPolicy: Always`。四个 GHCR Package 必须在首次发布后设为 Public，最终用户不需要执行 `docker login`。
+Chart 会在 `demo-guance-observability-demo` Secret 中自动生成 Demo 内部密码和故障控制口令。
 
-### 5. 获取外部 URL
+当前个人验证会拉取 `ghcr.io/cherrycove/guance-observability-demo-{gateway,order,inventory,payment}-service:latest`，并使用 `imagePullPolicy: Always`。迁移到 GuanceDemo 后只需把参数区的 `IMAGE_OWNER` 改为 `guancedemo`。四个 GHCR Package 必须设为 Public，最终用户不需要执行 `docker login`。
+
+### 4. 获取外部 URL
 
 AWS 创建 Load Balancer 通常需要几分钟。等待 Gateway Service 的 `EXTERNAL-IP` 从 `<pending>` 变为 `*.elb.amazonaws.com`：
 
@@ -148,10 +163,19 @@ echo "$DEMO_BASE_URL"
 
 这是 AWS 自动分配的公网 DNS，不要求提前购买或配置自有域名。该 Load Balancer 会产生 AWS 费用；Workshop 结束后应卸载应用。Java 容器使用 UID `10001`、只读根文件系统和最小权限 ServiceAccount；MySQL/Redis 使用 `emptyDir`，不适合保存生产数据。
 
-### 6. 验证并生成演示流量
+### 5. 获取控制口令、验证并生成演示流量
+
+网页首次执行故障操作时会要求输入控制口令。输出自动生成的值并复制到页面：
 
 ```bash
-export DEMO_CONTROL_TOKEN="$(kubectl -n guance-demo get secret guance-observability-demo \
+printf '%s\n' "$(kubectl -n guance-demo get secret demo-guance-observability-demo \
+  -o jsonpath='{.data.demo-control-token}' | base64 --decode)"
+```
+
+脚本验证使用同一个口令：
+
+```bash
+export DEMO_CONTROL_TOKEN="$(kubectl -n guance-demo get secret demo-guance-observability-demo \
   -o jsonpath='{.data.demo-control-token}' | base64 --decode)"
 
 scripts/smoke-test.sh
@@ -174,7 +198,7 @@ kubectl delete namespace guance-demo
 - DataWay URL：敏感，只通过 DataKit 安装环境传入。
 - RUM application ID：非敏感，但必须先在 Guance 创建；默认 `RUM_ENABLED=false`。
 - project：非敏感，默认 `mall-demo`，用于跨指标、链路、日志和 RUM 关联。
-- workspace ID：可选，只用于 Console 深链；未配置时界面改为复制 trace ID。
+- workspace ID：用于 TrueWatch Trace 深链。
 - control token：敏感，只存在 Compose 环境或 Kubernetes Secret，浏览器只保存于当前会话。
 
 RUM 使用 DataKit Origin，通过同源 `/rum-proxy` 上报，不需要 Public DataWay client token。配置和 SourceMap 步骤见 [RUM、Replay 与 SourceMap](docs/rum-sourcemap.md)；client token 的适用范围见 [官方说明](https://docs.guance.com/en/management/client-token/)。

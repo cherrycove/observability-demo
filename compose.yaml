@@ -104,7 +104,7 @@ services:
       RUM_APPLICATION_ID: ${RUM_APPLICATION_ID:-}
       RUM_SERVICE: mall-h5
       DATAKIT_RUM_URL: http://${DATAKIT_HOST:-host.docker.internal}:9529
-      GUANCE_CONSOLE_URL: ${GUANCE_CONSOLE_URL:-https://console.guance.com}
+      GUANCE_CONSOLE_URL: ${GUANCE_CONSOLE_URL:-https://ap1-console.truewatch.com}
       GUANCE_WORKSPACE_ID: ${GUANCE_WORKSPACE_ID:-}
       LOGGING_FILE_NAME: /var/log/guance-observability-demo/order-service.log
     depends_on:

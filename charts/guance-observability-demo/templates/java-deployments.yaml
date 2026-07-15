@@ -113,7 +113,7 @@ spec:
             - name: MYSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "existingSecret is required" $.Values.existingSecret }}
+                  name: {{ include "guance-observability-demo.secretName" $ }}
                   key: {{ $.Values.secretKeys.mysqlPassword }}
             - name: INVENTORY_URL
               value: http://{{ include "guance-observability-demo.fullname" $ }}-inventory-service:8081
@@ -124,7 +124,7 @@ spec:
             - name: DEMO_CONTROL_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "existingSecret is required" $.Values.existingSecret }}
+                  name: {{ include "guance-observability-demo.secretName" $ }}
                   key: {{ $.Values.secretKeys.controlToken }}
             - name: KUBERNETES_LOG_READER_ENABLED
               value: {{ $.Values.logViewer.enabled | quote }}

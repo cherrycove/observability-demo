@@ -23,6 +23,14 @@ app.kubernetes.io/name: {{ include "guance-observability-demo.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
+{{- define "guance-observability-demo.secretName" -}}
+{{- if .Values.existingSecret -}}
+{{- .Values.existingSecret -}}
+{{- else -}}
+{{- include "guance-observability-demo.fullname" . -}}
+{{- end -}}
+{{- end }}
+
 {{- define "guance-observability-demo.image" -}}
 {{- printf "%s/%s/guance-observability-demo-%s:%s" $.root.Values.image.registry $.root.Values.image.owner $.service $.root.Values.image.tag -}}
 {{- end }}

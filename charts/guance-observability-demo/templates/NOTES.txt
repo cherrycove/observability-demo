@@ -13,3 +13,15 @@ The demo is internal-only. Open it with:
 
 Then visit http://127.0.0.1:8080/ . MySQL and Redis use emptyDir and are intentionally ephemeral.
 {{- end }}
+
+{{- if not .Values.existingSecret }}
+Helm generated the MySQL credentials and demo control token in Secret
+{{ include "guance-observability-demo.secretName" . }}. Existing values are preserved on upgrade.
+{{- else }}
+The demo is using the pre-created Secret {{ include "guance-observability-demo.secretName" . }}.
+{{- end }}
+
+Print the control token when the web page asks for it:
+
+  printf '%s\n' "$(kubectl -n {{ .Release.Namespace }} get secret {{ include "guance-observability-demo.secretName" . }} \
+    -o jsonpath='{.data.{{ .Values.secretKeys.controlToken }}}' | base64 --decode)"

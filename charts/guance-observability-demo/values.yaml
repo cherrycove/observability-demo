@@ -10,8 +10,9 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# This Secret must exist before installation. The chart never creates credentials.
-existingSecret: guance-observability-demo
+# Leave empty to let Helm generate release-scoped demo credentials. Set this to
+# the name of a pre-created Secret to manage credentials outside this chart.
+existingSecret: ""
 secretKeys:
   mysqlPassword: mysql-password
   mysqlRootPassword: mysql-root-password
@@ -43,7 +44,7 @@ rum:
   service: mall-h5
 
 guanceConsole:
-  url: https://console.guance.com
+  url: https://ap1-console.truewatch.com
   workspaceId: ""
 
 logViewer:

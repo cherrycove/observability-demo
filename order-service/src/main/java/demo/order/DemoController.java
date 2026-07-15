@@ -148,7 +148,8 @@ class DemoController {
       @Value("${rum.env:${DD_ENV:demo}}") String rumEnv,
       @Value("${rum.version:${DD_VERSION:1.0.0}}") String rumVersion,
       @Value("${rum.service:mall-h5}") String rumService,
-      @Value("${demo.guance-console-url:https://console.guance.com}") String guanceConsoleUrl,
+      @Value("${demo.guance-console-url:https://ap1-console.truewatch.com}")
+          String guanceConsoleUrl,
       @Value("${demo.guance-workspace-id:}") String guanceWorkspaceId,
       @Value("${demo.log-directory:/var/log/guance-observability-demo}") String logDirectory,
       @Value("${demo.kubernetes-log-reader.enabled:true}") boolean kubernetesLogReaderEnabled,
@@ -167,7 +168,8 @@ class DemoController {
     this.rumVersion = defaultIfBlank(rumVersion, "1.0.0");
     this.rumService = defaultIfBlank(rumService, "mall-h5");
     this.guanceConsoleUrl =
-        trimTrailingSlash(defaultIfBlank(guanceConsoleUrl, "https://console.guance.com"));
+        trimTrailingSlash(
+            defaultIfBlank(guanceConsoleUrl, "https://ap1-console.truewatch.com"));
     this.guanceWorkspaceId = guanceWorkspaceId == null ? "" : guanceWorkspaceId.trim();
     this.kubernetesLogReaderEnabled = kubernetesLogReaderEnabled;
     this.backendLogReader =

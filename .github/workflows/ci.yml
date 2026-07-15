@@ -61,6 +61,7 @@ jobs:
             --set-string datakit.dataway_url=https://example.invalid \
             >/tmp/datakit-rendered.yaml
           grep -q 'project=mall-demo' /tmp/datakit-rendered.yaml
+          grep -q 'GET /actuator/health' /tmp/datakit-rendered.yaml
           docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 -strict -summary </tmp/datakit-rendered.yaml
       - name: Custom secret rules
         run: scripts/secret-scan.sh
@@ -113,13 +114,9 @@ jobs:
           done
       - name: Install demo
         run: |
-          kubectl create namespace guance-demo
-          kubectl -n guance-demo create secret generic guance-observability-demo \
-            --from-literal=mysql-password=kind-mysql-password \
-            --from-literal=mysql-root-password=kind-root-password \
-            --from-literal=demo-control-token=kind-control-token
           helm install demo charts/guance-observability-demo \
             --namespace guance-demo \
+            --create-namespace \
             --set image.registry=docker.io \
             --set image.owner=library \
             --set image.tag=ci \
@@ -127,10 +124,22 @@ jobs:
           for deployment in $(kubectl -n guance-demo get deployments -o name); do
             kubectl -n guance-demo rollout status "${deployment}" --timeout=8m
           done
+          secret_name=demo-guance-observability-demo
+          secret_before="$(kubectl -n guance-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
+          test -n "${secret_before}"
+          helm upgrade demo charts/guance-observability-demo \
+            --namespace guance-demo \
+            --set image.registry=docker.io \
+            --set image.owner=library \
+            --set image.tag=ci \
+            --set image.pullPolicy=Never
+          secret_after="$(kubectl -n guance-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
+          test "${secret_before}" = "${secret_after}"
       - name: Verify security and behavior
-        env:
-          DEMO_CONTROL_TOKEN: kind-control-token
         run: |
+          export DEMO_CONTROL_TOKEN="$(kubectl -n guance-demo get secret demo-guance-observability-demo \
+            -o jsonpath='{.data.demo-control-token}' | base64 --decode)"
+          test -n "${DEMO_CONTROL_TOKEN}"
           kubectl -n guance-demo port-forward svc/demo-guance-observability-demo-gateway-service 8080:80 >/tmp/port-forward.log 2>&1 &
           if ! curl --fail --silent \
             --retry 30 --retry-delay 2 --retry-all-errors --retry-max-time 60 \

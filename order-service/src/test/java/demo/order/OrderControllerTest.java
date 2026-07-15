@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -171,6 +172,22 @@ class OrderControllerTest {
   }
 
   @Test
+  void storefrontEmbedsBookCoversForSessionReplay() throws Exception {
+    byte[] sourceBytes;
+    try (var source = getClass().getResourceAsStream("/static/assets/selfheal-i18n.js")) {
+      assertThat(source).isNotNull();
+      sourceBytes = source.readAllBytes();
+    }
+
+    String source = new String(sourceBytes, StandardCharsets.UTF_8);
+    assertThat(source)
+        .contains("data:image/svg+xml")
+        .contains("cover: bookCovers.zh")
+        .contains("cover: bookCovers.en")
+        .doesNotContain("cover: 'assets/observability-engineering-");
+  }
+
+  @Test
   void publicConfigContainsNoSecretsAndOmitsUnconfiguredWorkspace() throws Exception {
     MockMvc demoMvc = MockMvcBuilders.standaloneSetup(newDemoController()).build();
 
@@ -180,8 +197,30 @@ class OrderControllerTest {
         .andExpect(jsonPath("$.controlTokenRequired").value(true))
         .andExpect(jsonPath("$.rumEnabled").value(true))
         .andExpect(jsonPath("$.project").value("mall-demo"))
+        .andExpect(jsonPath("$.guanceConsoleUrl").doesNotExist())
         .andExpect(jsonPath("$.workspaceId").doesNotExist())
         .andExpect(jsonPath("$.controlToken").doesNotExist());
+  }
+
+  @Test
+  void publicConfigUsesTrueWatchAp1ConsoleWhenWorkspaceIsConfigured() throws Exception {
+    MockMvc demoMvc =
+        MockMvcBuilders.standaloneSetup(
+                newDemoController(
+                    new RestTemplate(),
+                    "test",
+                    "1.0.0",
+                    "mall-h5",
+                    "https://ap1-console.truewatch.com/",
+                    "workspace-demo"))
+            .build();
+
+    demoMvc
+        .perform(get("/api/demo/config"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.guanceConsoleUrl").value("https://ap1-console.truewatch.com"))
+        .andExpect(jsonPath("$.workspaceId").value("workspace-demo"));
   }
 
   @Test
@@ -311,6 +350,22 @@ class OrderControllerTest {
 
   private DemoController newDemoController(
       RestTemplate restTemplate, String rumEnv, String rumVersion, String rumService) {
+    return newDemoController(
+        restTemplate,
+        rumEnv,
+        rumVersion,
+        rumService,
+        "https://ap1-console.truewatch.com",
+        "");
+  }
+
+  private DemoController newDemoController(
+      RestTemplate restTemplate,
+      String rumEnv,
+      String rumVersion,
+      String rumService,
+      String consoleUrl,
+      String workspaceId) {
     return new DemoController(
         restTemplate,
         "http://order-service.test",
@@ -324,8 +379,8 @@ class OrderControllerTest {
         rumEnv,
         rumVersion,
         rumService,
-        "https://console.guance.com",
-        "",
+        consoleUrl,
+        workspaceId,
         tempDir.toString(),
         false,
         240,

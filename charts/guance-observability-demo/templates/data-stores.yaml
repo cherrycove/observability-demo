@@ -47,12 +47,12 @@ spec:
             - name: MYSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "existingSecret is required" .Values.existingSecret }}
+                  name: {{ include "guance-observability-demo.secretName" . }}
                   key: {{ .Values.secretKeys.mysqlPassword }}
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "existingSecret is required" .Values.existingSecret }}
+                  name: {{ include "guance-observability-demo.secretName" . }}
                   key: {{ .Values.secretKeys.mysqlRootPassword }}
           ports:
             - name: mysql
