@@ -89,13 +89,16 @@ class GatewayProxyFilter extends OncePerRequestFilter {
     }
     String keyRequest = valueOrDash(request.getHeader("X-Key-Request"));
     String businessRequestId = valueOrDash(request.getHeader("X-Business-Request-Id"));
-    putRequestContext(keyRequest, businessRequestId);
-    applyCurrentSpanTags(keyRequest, businessRequestId);
+    DemoLanguage language = DemoLanguage.from(request.getHeader("X-Demo-Language"));
+    putRequestContext(keyRequest, businessRequestId, language);
+    applyCurrentSpanTags(keyRequest, businessRequestId, language);
 
     URI downstream = downstreamUri(request);
     long startedAt = System.nanoTime();
     log.info(
-        "网关接入：方法={} 路径={} 下游={} 关键请求={} 业务请求ID={}",
+        language.text(
+            "网关接入：方法={} 路径={} 下游={} 关键请求={} 业务请求ID={}",
+            "Gateway request received: method={} path={} downstream={} key_request={} biz_request_id={}"),
         request.getMethod(),
         request.getRequestURI(),
         downstream,
@@ -116,7 +119,9 @@ class GatewayProxyFilter extends OncePerRequestFilter {
       writeResponse(response, downstreamResponse);
       long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
       log.info(
-          "网关完成：方法={} 路径={} 状态={} 耗时={}ms 关键请求={} 业务请求ID={}",
+          language.text(
+              "网关完成：方法={} 路径={} 状态={} 耗时={}ms 关键请求={} 业务请求ID={}",
+              "Gateway request completed: method={} path={} status={} duration_ms={} key_request={} biz_request_id={}"),
           request.getMethod(),
           request.getRequestURI(),
           downstreamResponse.getStatusCode().value(),
@@ -126,7 +131,9 @@ class GatewayProxyFilter extends OncePerRequestFilter {
     } catch (IllegalArgumentException | RestClientException exception) {
       long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
       log.error(
-          "网关失败：方法={} 路径={} 耗时={}ms 关键请求={} 业务请求ID={} 原因={}",
+          language.text(
+              "网关失败：方法={} 路径={} 耗时={}ms 关键请求={} 业务请求ID={} 原因={}",
+              "Gateway request failed: method={} path={} duration_ms={} key_request={} biz_request_id={} reason={}"),
           request.getMethod(),
           request.getRequestURI(),
           elapsedMs,
@@ -190,7 +197,8 @@ class GatewayProxyFilter extends OncePerRequestFilter {
     }
   }
 
-  private void applyCurrentSpanTags(String keyRequest, String businessRequestId) {
+  private void applyCurrentSpanTags(
+      String keyRequest, String businessRequestId, DemoLanguage language) {
     try {
       Class<?> globalTracer = Class.forName("datadog.trace.api.GlobalTracer");
       Object tracer = globalTracer.getMethod("get").invoke(null);
@@ -199,6 +207,7 @@ class GatewayProxyFilter extends OncePerRequestFilter {
         setTag(span, "gateway.target", "order-service");
         setTag(span, "key_request", keyRequest);
         setTag(span, "biz_request_id", businessRequestId);
+        setTag(span, "language", language.code());
       }
     } catch (ReflectiveOperationException | LinkageError ignored) {
       // Unit tests and local builds do not require the runtime tracing agent.
@@ -211,7 +220,8 @@ class GatewayProxyFilter extends OncePerRequestFilter {
     }
   }
 
-  private void putRequestContext(String keyRequest, String businessRequestId) {
+  private void putRequestContext(
+      String keyRequest, String businessRequestId, DemoLanguage language) {
     String processId = Long.toString(ProcessHandle.current().pid());
     String hostName = valueOrDash(System.getenv("HOSTNAME"));
     MDC.put("process_id", processId);
@@ -223,6 +233,7 @@ class GatewayProxyFilter extends OncePerRequestFilter {
     MDC.put("pod_namespace", valueOrDash(System.getenv("POD_NAMESPACE")));
     MDC.put("container_name", valueOrDash(System.getenv("CONTAINER_NAME")));
     MDC.put("container_id", hostName);
+    MDC.put("language", language.code());
     if (!"-".equals(keyRequest)) {
       MDC.put("key_request", keyRequest);
     }
@@ -244,7 +255,8 @@ class GatewayProxyFilter extends OncePerRequestFilter {
             "container_name",
             "container_id",
             "key_request",
-            "biz_request_id")) {
+            "biz_request_id",
+            "language")) {
       MDC.remove(key);
     }
   }

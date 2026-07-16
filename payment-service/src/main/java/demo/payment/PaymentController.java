@@ -39,14 +39,20 @@ class PaymentController {
       @RequestBody(required = false) PaymentRequest request,
       @RequestHeader(value = "X-Key-Request", required = false) String keyRequest,
       @RequestHeader(value = "X-Business-Request-Id", required = false) String businessRequestId,
+      @RequestHeader(value = "X-Demo-Language", required = false) String language,
       @RequestHeader(value = "baggage", required = false) String baggage)
       throws InterruptedException {
     PaymentRequest paymentRequest =
         request == null ? new PaymentRequest("unknown", 1999) : request.withDefaults();
-    RequestMetadata metadata = RequestMetadata.from(keyRequest, businessRequestId, baggage);
+    RequestMetadata metadata =
+        RequestMetadata.from(keyRequest, businessRequestId, language, baggage);
     if (paymentRequest.amountCent() <= 0) {
       log.warn(
-          "支付拒绝：订单ID={} 金额={}分 原因=金额必须大于0 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "支付拒绝：订单ID={} 金额={}分 原因=金额必须大于0 关键请求={} 业务请求ID={}",
+                  "Payment rejected: order_id={} amount_cent={} reason=amount_must_be_positive key_request={} biz_request_id={}"),
           paymentRequest.orderId(),
           paymentRequest.amountCent(),
           metadata.keyRequestOrDash(),
@@ -58,7 +64,11 @@ class PaymentController {
     if (fault.is("payment_error")) {
       fault.applyCurrentSpanTags();
       log.warn(
-          "故障注入：模拟支付服务 5xx 订单ID={} 故障ID={} 层级={} 目标={} 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "故障注入：模拟支付服务 5xx 订单ID={} 故障ID={} 层级={} 目标={} 关键请求={} 业务请求ID={}",
+                  "Fault injected: simulating payment-service 5xx order_id={} fault_id={} layer={} target={} key_request={} biz_request_id={}"),
           paymentRequest.orderId(),
           fault.mode(),
           fault.layer(),
@@ -70,7 +80,11 @@ class PaymentController {
     if (fault.is("payment_cpu_burn")) {
       fault.applyCurrentSpanTags();
       log.warn(
-          "故障注入：模拟支付服务 CPU 繁忙 订单ID={} 故障ID={} 层级={} 目标={} 持续毫秒={} 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "故障注入：模拟支付服务 CPU 繁忙 订单ID={} 故障ID={} 层级={} 目标={} 持续毫秒={} 关键请求={} 业务请求ID={}",
+                  "Fault injected: simulating payment-service CPU load order_id={} fault_id={} layer={} target={} duration_ms={} key_request={} biz_request_id={}"),
           paymentRequest.orderId(),
           fault.mode(),
           fault.layer(),
@@ -83,7 +97,11 @@ class PaymentController {
     if (fault.is("payment_slow")) {
       fault.applyCurrentSpanTags();
       log.warn(
-          "故障注入：模拟支付服务慢方法 订单ID={} 故障ID={} 层级={} 目标={} 等待毫秒={} 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "故障注入：模拟支付服务慢方法 订单ID={} 故障ID={} 层级={} 目标={} 等待毫秒={} 关键请求={} 业务请求ID={}",
+                  "Fault injected: simulating slow payment method order_id={} fault_id={} layer={} target={} delay_ms={} key_request={} biz_request_id={}"),
           paymentRequest.orderId(),
           fault.mode(),
           fault.layer(),
@@ -97,7 +115,11 @@ class PaymentController {
     int latencyMs = ThreadLocalRandom.current().nextInt(80, 181);
     Thread.sleep(latencyMs);
     log.info(
-        "支付成功：订单ID={} 金额={}分 耗时={}ms 关键请求={} 业务请求ID={} 上下文={}",
+        metadata
+            .language()
+            .text(
+                "支付成功：订单ID={} 金额={}分 耗时={}ms 关键请求={} 业务请求ID={} 上下文={}",
+                "Payment completed: order_id={} amount_cent={} duration_ms={} key_request={} biz_request_id={} context={}"),
         paymentRequest.orderId(),
         paymentRequest.amountCent(),
         latencyMs,

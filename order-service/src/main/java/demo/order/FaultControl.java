@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,10 +38,14 @@ class FaultAdminController {
   @PostMapping("/{mode}")
   Map<String, Object> enable(
       @PathVariable("mode") String mode,
+      @RequestHeader(value = "X-Demo-Language", required = false) String languageHeader,
       @RequestParam(name = "ttlSeconds", defaultValue = "300") long ttlSeconds) {
     FaultSnapshot fault = faultState.enable(mode, ttlSeconds);
+    DemoLanguage language = DemoLanguage.from(languageHeader);
     log.info(
-        "故障开关：已开启订单服务故障 mode={} layer={} target={} ttlSeconds={}",
+        language.text(
+            "故障开关：已开启订单服务故障 mode={} layer={} target={} ttlSeconds={}",
+            "Fault enabled for order-service: mode={} layer={} target={} ttl_seconds={}"),
         fault.mode(),
         fault.layer(),
         fault.target(),
@@ -49,9 +54,13 @@ class FaultAdminController {
   }
 
   @PostMapping("/off")
-  Map<String, Object> off() {
+  Map<String, Object> off(
+      @RequestHeader(value = "X-Demo-Language", required = false) String languageHeader) {
     FaultSnapshot fault = faultState.disable();
-    log.info("故障恢复：已关闭订单服务故障");
+    DemoLanguage language = DemoLanguage.from(languageHeader);
+    log.info(
+        language.text(
+            "故障恢复：已关闭订单服务故障", "Fault recovered: order-service fault disabled"));
     return fault.toMap("order-service");
   }
 }

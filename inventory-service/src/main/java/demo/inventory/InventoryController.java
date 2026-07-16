@@ -42,12 +42,18 @@ class InventoryController {
       @RequestBody(required = false) InventoryRequest request,
       @RequestHeader(value = "X-Key-Request", required = false) String keyRequest,
       @RequestHeader(value = "X-Business-Request-Id", required = false) String businessRequestId,
+      @RequestHeader(value = "X-Demo-Language", required = false) String language,
       @RequestHeader(value = "baggage", required = false) String baggage) {
     InventoryRequest inventoryRequest =
         request == null ? new InventoryRequest("unknown", "sku-1001", 1) : request.withDefaults();
-    RequestMetadata metadata = RequestMetadata.from(keyRequest, businessRequestId, baggage);
+    RequestMetadata metadata =
+        RequestMetadata.from(keyRequest, businessRequestId, language, baggage);
     log.info(
-        "预留库存：订单ID={} 商品={} 数量={} 库存模式={} 关键请求={} 业务请求ID={} 上下文={}",
+        metadata
+            .language()
+            .text(
+                "预留库存：订单ID={} 商品={} 数量={} 库存模式={} 关键请求={} 业务请求ID={} 上下文={}",
+                "Reserving inventory: order_id={} sku={} quantity={} inventory_mode={} key_request={} biz_request_id={} context={}"),
         inventoryRequest.orderId(),
         inventoryRequest.sku(),
         inventoryRequest.quantity(),
@@ -66,7 +72,11 @@ class InventoryController {
     Long remaining = redisTemplate.opsForValue().decrement(stockKey, inventoryRequest.quantity());
     if (remaining == null) {
       log.warn(
-          "库存预留失败：订单ID={} 商品={} 原因=Redis 返回空库存值 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "库存预留失败：订单ID={} 商品={} 原因=Redis 返回空库存值 关键请求={} 业务请求ID={}",
+                  "Inventory reservation failed: order_id={} sku={} reason=Redis returned a null stock value key_request={} biz_request_id={}"),
           inventoryRequest.orderId(),
           inventoryRequest.sku(),
           metadata.keyRequestOrDash(),
@@ -77,7 +87,11 @@ class InventoryController {
     if (remaining < 0) {
       redisTemplate.opsForValue().increment(stockKey, inventoryRequest.quantity());
       log.warn(
-          "库存预留失败：订单ID={} 商品={} 请求数量={} 剩余库存不足 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "库存预留失败：订单ID={} 商品={} 请求数量={} 剩余库存不足 关键请求={} 业务请求ID={}",
+                  "Inventory reservation failed: order_id={} sku={} requested_quantity={} reason=insufficient_stock key_request={} biz_request_id={}"),
           inventoryRequest.orderId(),
           inventoryRequest.sku(),
           inventoryRequest.quantity(),
@@ -101,7 +115,11 @@ class InventoryController {
   private void injectRedisTimeout(
       InventoryRequest request, RequestMetadata metadata, FaultSnapshot fault) {
     log.warn(
-        "故障注入：模拟 Redis 超时 订单ID={} 故障ID={} 层级={} 目标={} 等待秒数={} 关键请求={} 业务请求ID={}",
+        metadata
+            .language()
+            .text(
+                "故障注入：模拟 Redis 超时 订单ID={} 故障ID={} 层级={} 目标={} 等待秒数={} 关键请求={} 业务请求ID={}",
+                "Fault injected: simulating Redis timeout order_id={} fault_id={} layer={} target={} delay_seconds={} key_request={} biz_request_id={}"),
         request.orderId(),
         fault.mode(),
         fault.layer(),

@@ -87,7 +87,7 @@ spec:
             - name: DD_LOGS_INJECTION
               value: "true"
             - name: DD_TRACE_HEADER_TAGS
-              value: "x-key-request:key_request,x-business-request-id:biz_request_id"
+              value: "x-key-request:key_request,x-business-request-id:biz_request_id,x-demo-language:language"
             - name: POD_NAME
               valueFrom:
                 fieldRef:

@@ -2308,7 +2308,11 @@
       const response = await fetch(`${apiPrefix}${url}`, {
         cache: 'no-store',
         ...options,
-        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Demo-Language': state.language,
+          ...(options.headers || {}),
+        },
       });
       const text = await response.text();
       let body = text;

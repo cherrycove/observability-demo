@@ -12,7 +12,7 @@ x-java-environment: &java-environment
   DD_JMXFETCH_STATSD_PORT: "8125"
   DD_PROFILING_ENABLED: "true"
   DD_LOGS_INJECTION: "true"
-  DD_TRACE_HEADER_TAGS: x-key-request:key_request,x-business-request-id:biz_request_id
+  DD_TRACE_HEADER_TAGS: x-key-request:key_request,x-business-request-id:biz_request_id,x-demo-language:language
 
 x-java-service: &java-service
   restart: unless-stopped

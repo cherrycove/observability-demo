@@ -3,6 +3,7 @@
 | 信号 | 来源 | 关键关联字段 |
 | --- | --- | --- |
 | Kubernetes/容器指标 | DataKit container、kubernetesprometheus | `project`、`cluster_name_k8s`、`pod_name`、`container_name` |
+| eBPF 网络可观测性 | DataKit ebpf-net、ebpf-conntrack | `project`、`src_*`、`dst_*`、`direction`、`family`、NAT 与 HTTP/DNS 字段 |
 | APM Trace | DDTrace Java Agent | `project`、`trace_id`、`span_id`、`service`、`env`、`version` |
 | 应用日志 | stdout + `datakit/logs` Annotation | Trace 字段、业务字段、故障字段、进程/Pod/容器字段 |
 | JVM 指标 | Java Agent → StatsD `8125` | `project`、`service`、`env`、JVM measurement |
@@ -13,8 +14,13 @@
 
 - 产品：`project`。
 - 业务：`key_request`、`biz_request_id`。
+- 语言：`language`，值为 `zh` 或 `en`。
 - 故障：`fault_id`、`fault_layer`、`fault_kind`、`fault_target`。
 - 链路：`trace_id`、`span_id`、`service`、`env`、`version`。
 - 运行身份：`process_id`、`host_process_id`、`container_process_id`、`host`、`host_name`、`pod_name`、`pod_namespace`、`container_name`、`container_id`。
 
 `GET /api/demo/logs` 只接受应用生成的 `biz-...` 和 `ord-...` 格式，防止公开接口被用来用任意字符串扫描命名空间日志。只有 order-service 使用可读取 `pods` 与 `pods/log` 的 ServiceAccount；其他 Java Pod 不挂载 API token。
+
+浏览器使用 `X-Demo-Language` 将当前页面语言沿 Gateway、Order、Inventory 和 Payment 调用链逐级透传。应用只切换日志 `message` 的中英文模板；状态、业务 ID、故障字段和其他结构字段保持稳定，未携带该请求头的健康检查与后台请求默认使用中文。
+
+DataKit 默认开启 `ebpf-net`、`ebpf-conntrack`、HTTP、HTTPS 与 DNS 网络流采集，用于展示主机、Pod 与服务之间的 L4/L7 网络关系。官方 Chart 以 DaemonSet 运行时已提供 eBPF 所需的宿主机网络、PID、特权模式和 `/sys/kernel/debug` 挂载；节点需要使用支持 eBPF 的 Linux 内核。`ebpf-bash` 属于命令日志，`ebpf-trace` 依赖额外的 ELinker，因此不属于本 Demo 的 eBPF 指标采集范围。

@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -69,18 +73,28 @@ class OrderControllerTest {
 
   @Test
   void demoOrderPreservesProjectBaggageForDownstreamServices() throws Exception {
-    mockMvc
-        .perform(
-            get("/api/orders/demo")
-                .header("X-Key-Request", "checkout_submit_order")
-                .header("X-Business-Request-Id", "biz-1001")
-                .header(
-                    "baggage",
-                    "project=mall-demo,"
-                        + "key_request=checkout_submit_order,"
-                        + "biz_chain=selfheal_checkout,biz_request_id=biz-1001"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    Logger logger = (Logger) LoggerFactory.getLogger(OrderController.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      mockMvc
+          .perform(
+              get("/api/orders/demo")
+                  .header("X-Key-Request", "checkout_submit_order")
+                  .header("X-Business-Request-Id", "biz-1001")
+                  .header("X-Demo-Language", "en")
+                  .header(
+                      "baggage",
+                      "project=mall-demo,"
+                          + "key_request=checkout_submit_order,"
+                          + "biz_chain=selfheal_checkout,biz_request_id=biz-1001"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    } finally {
+      logger.detachAppender(appender);
+      appender.stop();
+    }
 
     assertThat(restTemplate.requests).hasSize(2);
     assertThat(restTemplate.requests)
@@ -93,7 +107,11 @@ class OrderControllerTest {
                   .contains("biz_chain=selfheal_checkout")
                   .contains("biz_request_id=biz-1001");
               assertThat(baggage).matches("^[\\x21-\\x7E]+$");
+              assertThat(request.getHeaders().getFirst("X-Demo-Language")).isEqualTo("en");
             });
+    assertThat(appender.list)
+        .anySatisfy(
+            event -> assertThat(event.getFormattedMessage()).contains("Creating order:"));
   }
 
   @Test
@@ -241,18 +259,26 @@ class OrderControllerTest {
   @Test
   void enableFaultScenarioForwardsToTargetService() throws Exception {
     RecordingRestTemplate demoRestTemplate = new RecordingRestTemplate();
-    MockMvc demoMvc = MockMvcBuilders.standaloneSetup(newDemoController(demoRestTemplate)).build();
+    MockMvc demoMvc =
+        MockMvcBuilders.standaloneSetup(newDemoController(demoRestTemplate))
+            .addInterceptors(new KeyRequestSpanTagInterceptor())
+            .build();
 
     demoMvc
         .perform(
             post("/api/demo/faults/inventory_redis_timeout/enable")
-                .header("X-Demo-Control-Token", "demo-token"))
+                .header("X-Demo-Control-Token", "demo-token")
+                .header("X-Demo-Language", "en"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.scenario.id").value("inventory_redis_timeout"))
         .andExpect(jsonPath("$.result.mode").value("redis_timeout"));
 
     assertThat(demoRestTemplate.postObjectUrls)
         .contains("http://inventory-service.test/admin/fault/redis_timeout?ttlSeconds=300");
+    assertThat(demoRestTemplate.requests)
+        .allSatisfy(
+            request ->
+                assertThat(request.getHeaders().getFirst("X-Demo-Language")).isEqualTo("en"));
   }
 
   @Test
@@ -425,10 +451,36 @@ class OrderControllerTest {
 
     @Override
     @SuppressWarnings("unchecked")
+    public <T> ResponseEntity<T> exchange(
+        String url,
+        HttpMethod method,
+        @Nullable HttpEntity<?> requestEntity,
+        Class<T> responseType,
+        Object... uriVariables)
+        throws RestClientException {
+      if (requestEntity != null) {
+        requests.add(requestEntity);
+      }
+      if (method == HttpMethod.GET && url.endsWith("/actuator/health")) {
+        return (ResponseEntity<T>) ResponseEntity.ok(Map.of("status", "UP"));
+      }
+      if (method == HttpMethod.GET && url.endsWith("/admin/fault")) {
+        return (ResponseEntity<T>)
+            ResponseEntity.ok(
+                Map.of("mode", "none", "layer", "normal", "service", serviceName(url)));
+      }
+      throw new RestClientException("unexpected exchange url: " + url);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
     public <T> T postForObject(
         String url, @Nullable Object request, Class<T> responseType, Object... uriVariables)
         throws RestClientException {
       postObjectUrls.add(url);
+      if (request instanceof HttpEntity<?> entity) {
+        requests.add(entity);
+      }
       if (url.contains("/admin/fault/off")) {
         return (T) Map.of("mode", "none");
       }

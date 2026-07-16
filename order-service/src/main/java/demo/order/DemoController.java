@@ -9,7 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -336,7 +340,8 @@ class DemoController {
                 index -> {
                   try {
                     OrderRequest request = new OrderRequest("sku-1001", 1, 1999);
-                    return restTemplate.postForObject(orderUrl + "/api/orders", request, Map.class);
+                    return restTemplate.postForObject(
+                        orderUrl + "/api/orders", withLanguage(request), Map.class);
                   } catch (RuntimeException exception) {
                     Map<String, Object> failure = new LinkedHashMap<>();
                     failure.put("error", exception.getMessage());
@@ -350,7 +355,7 @@ class DemoController {
 
   private Map<String, Object> forwardPost(String url) {
     try {
-      Map<String, Object> body = restTemplate.postForObject(url, null, Map.class);
+      Map<String, Object> body = restTemplate.postForObject(url, withLanguage(null), Map.class);
       return body == null ? Map.of("status", "UNKNOWN", "url", url) : body;
     } catch (RestClientException exception) {
       Map<String, Object> failure = new LinkedHashMap<>();
@@ -379,9 +384,12 @@ class DemoController {
     return response;
   }
 
+  @SuppressWarnings("unchecked")
   private Map<String, Object> getJson(String url) {
     try {
-      Map<String, Object> body = restTemplate.getForObject(url, Map.class);
+      ResponseEntity<Map> response =
+          restTemplate.exchange(url, HttpMethod.GET, withLanguage(null), Map.class);
+      Map<String, Object> body = (Map<String, Object>) response.getBody();
       return body == null ? Map.of("status", "UNKNOWN", "url", url) : body;
     } catch (RestClientException exception) {
       Map<String, Object> failure = new LinkedHashMap<>();
@@ -390,6 +398,12 @@ class DemoController {
       failure.put("error", exception.getMessage());
       return failure;
     }
+  }
+
+  private HttpEntity<Object> withLanguage(Object body) {
+    HttpHeaders headers = new HttpHeaders();
+    headers.set("X-Demo-Language", DemoLanguage.current().code());
+    return new HttpEntity<>(body, headers);
   }
 
   private void addNeedle(

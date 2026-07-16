@@ -105,12 +105,14 @@ helm upgrade --install datakit datakit/datakit \
 unset DATAWAY_URL
 ```
 
-仓库中的 values 开启 Kubernetes/容器指标、DDTrace、JVM StatsD、Profile、RUM、日志采集和 Pipeline，并为独立 Demo 集群设置 `project=mall-demo`。真实 DataWay URL 由 chart 保存到 Kubernetes Secret，不写入仓库。
+仓库中的 values 开启 Kubernetes/容器与进程指标、eBPF L4/L7 网络流、DDTrace、JVM StatsD、Profile、RUM、日志采集和 Pipeline，并为独立 Demo 集群设置 `project=mall-demo`。真实 DataWay URL 由 chart 保存到 Kubernetes Secret，不写入仓库。
 
 ```bash
 kubectl -n datakit get pods
-kubectl -n datakit logs daemonset/datakit --tail=100
+kubectl -n datakit logs daemonset/datakit --tail=500 | grep -i ebpf
 ```
+
+已有 DataKit Release 不需要卸载。拉取最新仓库后，从 `datakit-dataway-secret` 读取现有 DataWay URL，并重新执行上面的 `helm upgrade --install`，最后运行 `kubectl rollout status daemonset/datakit -n datakit --timeout=5m` 等待滚动升级完成。
 
 如果这个 DataKit 还采集同一集群中的其他项目，应移除全局 `project`，只给 Demo workload 和应用信号设置该标签。参考 [DataKit Helm](https://docs.truewatch.com/datakit/datakit-helm/) 与 [Kubernetes 部署](https://docs.truewatch.com/en/datakit/datakit-daemonset-deploy/)。
 

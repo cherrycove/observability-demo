@@ -59,9 +59,14 @@ class OrderController {
   Map<String, Object> createDemoOrder(
       @RequestHeader(value = "X-Key-Request", required = false) String keyRequest,
       @RequestHeader(value = "X-Business-Request-Id", required = false) String businessRequestId,
+      @RequestHeader(value = "X-Demo-Language", required = false) String language,
       @RequestHeader(value = "baggage", required = false) String baggage) {
     return createOrder(
-            new OrderRequest("sku-1001", 1, 1999), keyRequest, businessRequestId, baggage)
+            new OrderRequest("sku-1001", 1, 1999),
+            keyRequest,
+            businessRequestId,
+            language,
+            baggage)
         .getBody();
   }
 
@@ -70,16 +75,22 @@ class OrderController {
       @RequestBody(required = false) OrderRequest request,
       @RequestHeader(value = "X-Key-Request", required = false) String keyRequest,
       @RequestHeader(value = "X-Business-Request-Id", required = false) String businessRequestId,
+      @RequestHeader(value = "X-Demo-Language", required = false) String language,
       @RequestHeader(value = "baggage", required = false) String baggage) {
     OrderRequest orderRequest =
         request == null ? new OrderRequest("sku-1001", 1, 1999) : request.withDefaults();
     String orderId = "ord-" + UUID.randomUUID();
     Instant createdAt = Instant.now();
-    RequestMetadata metadata = RequestMetadata.from(keyRequest, businessRequestId, baggage);
+    RequestMetadata metadata =
+        RequestMetadata.from(keyRequest, businessRequestId, language, baggage);
     FaultSnapshot fault = faultState.current();
 
     log.info(
-        "创建订单：订单ID={} 商品={} 数量={} 金额={}分 关键请求={} 业务请求ID={} 上下文={}",
+        metadata
+            .language()
+            .text(
+                "创建订单：订单ID={} 商品={} 数量={} 金额={}分 关键请求={} 业务请求ID={} 上下文={}",
+                "Creating order: order_id={} sku={} quantity={} amount_cent={} key_request={} biz_request_id={} context={}"),
         orderId,
         orderRequest.sku(),
         orderRequest.quantity(),
@@ -89,14 +100,22 @@ class OrderController {
         metadata.baggageOrDash());
     orderStore.create(orderId, orderRequest, metadata, createdAt);
     log.info(
-        "订单已写入MySQL：订单ID={} 状态=CREATED 关键请求={} 业务请求ID={}",
+        metadata
+            .language()
+            .text(
+                "订单已写入MySQL：订单ID={} 状态=CREATED 关键请求={} 业务请求ID={}",
+                "Order persisted to MySQL: order_id={} status=CREATED key_request={} biz_request_id={}"),
         orderId,
         metadata.keyRequestOrDash(),
         metadata.businessRequestIdOrDash());
     if (fault.is("order_slow")) {
       fault.applyCurrentSpanTags();
       log.warn(
-          "故障注入：模拟订单入口慢响应 订单ID={} 故障ID={} 层级={} 目标={} 等待毫秒={} 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "故障注入：模拟订单入口慢响应 订单ID={} 故障ID={} 层级={} 目标={} 等待毫秒={} 关键请求={} 业务请求ID={}",
+                  "Fault injected: simulating slow order entry order_id={} fault_id={} layer={} target={} delay_ms={} key_request={} biz_request_id={}"),
           orderId,
           fault.mode(),
           fault.layer(),
@@ -126,7 +145,11 @@ class OrderController {
     response.put("status", "CONFIRMED");
     response.put("createdAt", createdAt.toString());
     log.info(
-        "订单确认：订单ID={} 关键请求={} 业务请求ID={}",
+        metadata
+            .language()
+            .text(
+                "订单确认：订单ID={} 关键请求={} 业务请求ID={}",
+                "Order confirmed: order_id={} key_request={} biz_request_id={}"),
         orderId,
         metadata.keyRequestOrDash(),
         metadata.businessRequestIdOrDash());
@@ -139,13 +162,21 @@ class OrderController {
     try {
       orderStore.updateStatus(orderId, "FAILED", Instant.now());
       log.warn(
-          "订单状态已写入MySQL：订单ID={} 状态=FAILED 关键请求={} 业务请求ID={}",
+          metadata
+              .language()
+              .text(
+                  "订单状态已写入MySQL：订单ID={} 状态=FAILED 关键请求={} 业务请求ID={}",
+                  "Order status persisted to MySQL: order_id={} status=FAILED key_request={} biz_request_id={}"),
           orderId,
           metadata.keyRequestOrDash(),
           metadata.businessRequestIdOrDash());
     } catch (RuntimeException persistenceException) {
       log.error(
-          "订单失败状态写入MySQL失败：订单ID={} 关键请求={} 业务请求ID={} 原因={}",
+          metadata
+              .language()
+              .text(
+                  "订单失败状态写入MySQL失败：订单ID={} 关键请求={} 业务请求ID={} 原因={}",
+                  "Failed to persist order failure status: order_id={} key_request={} biz_request_id={} reason={}"),
           orderId,
           metadata.keyRequestOrDash(),
           metadata.businessRequestIdOrDash(),
@@ -172,7 +203,11 @@ class OrderController {
           inventoryUrl + "/api/inventory/reserve", metadata.withHeaders(request), Map.class);
     } catch (RestClientException e) {
       log.warn(
-          "库存预留失败：订单ID={} 关键请求={} 业务请求ID={} 原因={}",
+          metadata
+              .language()
+              .text(
+                  "库存预留失败：订单ID={} 关键请求={} 业务请求ID={} 原因={}",
+                  "Inventory reservation failed: order_id={} key_request={} biz_request_id={} reason={}"),
           orderId,
           metadata.keyRequestOrDash(),
           metadata.businessRequestIdOrDash(),
@@ -189,7 +224,11 @@ class OrderController {
           paymentUrl + "/api/payments/pay", metadata.withHeaders(request), Map.class);
     } catch (RestClientException e) {
       log.warn(
-          "支付失败：订单ID={} 关键请求={} 业务请求ID={} 原因={}",
+          metadata
+              .language()
+              .text(
+                  "支付失败：订单ID={} 关键请求={} 业务请求ID={} 原因={}",
+                  "Payment failed: order_id={} key_request={} biz_request_id={} reason={}"),
           orderId,
           metadata.keyRequestOrDash(),
           metadata.businessRequestIdOrDash(),
@@ -260,13 +299,18 @@ record InventoryRequest(String orderId, String sku, Integer quantity) {}
 
 record PaymentRequest(String orderId, Integer amountCent) {}
 
-record RequestMetadata(String keyRequest, String businessRequestId, String baggage) {
+record RequestMetadata(
+    String keyRequest, String businessRequestId, DemoLanguage language, String baggage) {
   private static final Pattern BAGGAGE_MEMBER_KEY = Pattern.compile("[A-Za-z0-9_.*/-]+");
   private static final char[] HEX = "0123456789ABCDEF".toCharArray();
 
-  static RequestMetadata from(String keyRequest, String businessRequestId, String baggage) {
+  static RequestMetadata from(
+      String keyRequest, String businessRequestId, String language, String baggage) {
     return new RequestMetadata(
-        blankToNull(keyRequest), blankToNull(businessRequestId), blankToNull(baggage));
+        blankToNull(keyRequest),
+        blankToNull(businessRequestId),
+        DemoLanguage.from(language),
+        blankToNull(baggage));
   }
 
   HttpEntity<Object> withHeaders(Object body) {
@@ -277,6 +321,7 @@ record RequestMetadata(String keyRequest, String businessRequestId, String bagga
     if (businessRequestId != null) {
       headers.set("X-Business-Request-Id", businessRequestId);
     }
+    headers.set("X-Demo-Language", language.code());
     if (baggage != null) {
       headers.set("baggage", safeBaggageHeader(baggage));
     }
@@ -311,6 +356,7 @@ record RequestMetadata(String keyRequest, String businessRequestId, String bagga
     if (businessRequestId != null) {
       MDC.put("biz_request_id", businessRequestId);
     }
+    MDC.put("language", language.code());
     try {
       Class<?> tracerClass =
           Class.forName("datadog.trace.bootstrap.instrumentation.api.AgentTracer");
@@ -351,6 +397,9 @@ record RequestMetadata(String keyRequest, String businessRequestId, String bagga
           .getMethod("setBaggageItem", String.class, String.class)
           .invoke(span, "biz_request_id", businessRequestId);
     }
+    span.getClass()
+        .getMethod("setTag", String.class, String.class)
+        .invoke(span, "language", language.code());
     String bizChain = baggageValue("biz_chain");
     if (bizChain != null) {
       span.getClass()

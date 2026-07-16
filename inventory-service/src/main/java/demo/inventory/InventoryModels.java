@@ -13,10 +13,15 @@ record InventoryRequest(String orderId, String sku, Integer quantity) {
   }
 }
 
-record RequestMetadata(String keyRequest, String businessRequestId, String baggage) {
-  static RequestMetadata from(String keyRequest, String businessRequestId, String baggage) {
+record RequestMetadata(
+    String keyRequest, String businessRequestId, DemoLanguage language, String baggage) {
+  static RequestMetadata from(
+      String keyRequest, String businessRequestId, String language, String baggage) {
     return new RequestMetadata(
-        blankToNull(keyRequest), blankToNull(businessRequestId), blankToNull(baggage));
+        blankToNull(keyRequest),
+        blankToNull(businessRequestId),
+        DemoLanguage.from(language),
+        blankToNull(baggage));
   }
 
   String keyRequestOrDash() {
@@ -38,6 +43,7 @@ record RequestMetadata(String keyRequest, String businessRequestId, String bagga
     if (businessRequestId != null) {
       MDC.put("biz_request_id", businessRequestId);
     }
+    MDC.put("language", language.code());
     try {
       Class<?> tracerClass =
           Class.forName("datadog.trace.bootstrap.instrumentation.api.AgentTracer");
@@ -78,6 +84,9 @@ record RequestMetadata(String keyRequest, String businessRequestId, String bagga
           .getMethod("setBaggageItem", String.class, String.class)
           .invoke(span, "biz_request_id", businessRequestId);
     }
+    span.getClass()
+        .getMethod("setTag", String.class, String.class)
+        .invoke(span, "language", language.code());
     String bizChain = baggageValue("biz_chain");
     if (bizChain != null) {
       span.getClass()

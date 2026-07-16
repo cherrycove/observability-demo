@@ -21,10 +21,15 @@ class KeyRequestSpanTagInterceptor implements HandlerInterceptor {
         RequestMetadata.from(
             request.getHeader("X-Key-Request"),
             request.getHeader("X-Business-Request-Id"),
+            request.getHeader("X-Demo-Language"),
             request.getHeader("baggage"));
     metadata.applyCurrentSpanTags();
     log.info(
-        "接口入口：方法={} 路径={} 参数={} 关键请求={} 业务请求ID={} 客户端IP={} 客户端={}",
+        metadata
+            .language()
+            .text(
+                "接口入口：方法={} 路径={} 参数={} 关键请求={} 业务请求ID={} 客户端IP={} 客户端={}",
+                "API request received: method={} path={} query={} key_request={} biz_request_id={} client_ip={} user_agent={}"),
         request.getMethod(),
         request.getRequestURI(),
         valueOrDash(request.getQueryString()),
@@ -101,6 +106,7 @@ final class ProcessIdentity {
     MDC.remove("container_id");
     MDC.remove("key_request");
     MDC.remove("biz_request_id");
+    MDC.remove("language");
     MDC.remove("fault_id");
     MDC.remove("fault_layer");
     MDC.remove("fault_kind");
