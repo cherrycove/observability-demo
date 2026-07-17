@@ -525,16 +525,18 @@ if [[ -e /etc/obs-agent ]] \
   exit 1
 fi
 
-if command -v dnf >/dev/null 2>&1; then
-  dnf install -y curl ca-certificates
-elif command -v yum >/dev/null 2>&1; then
-  yum install -y curl ca-certificates
-elif command -v apt-get >/dev/null 2>&1; then
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates
-elif ! command -v curl >/dev/null 2>&1; then
-  printf 'curl is required and no supported package manager was found.\n' >&2
-  exit 1
+if ! command -v curl >/dev/null 2>&1; then
+  if command -v dnf >/dev/null 2>&1; then
+    dnf install -y curl-minimal ca-certificates
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y curl ca-certificates
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates
+  else
+    printf 'curl is required and no supported package manager was found.\n' >&2
+    exit 1
+  fi
 fi
 
 case "$(uname -m)" in
