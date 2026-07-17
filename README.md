@@ -191,6 +191,32 @@ helm uninstall demo --namespace observability-demo
 kubectl delete namespace observability-demo
 ```
 
+### 6. 可选：在 EKS 节点部署 Agent Teams Runtime
+
+Agent Teams Runtime 需要部署在能够访问目标工具和数据的环境中。Workshop 可将自托管 `obs-agent` 临时安装到一台 EKS EC2 工作节点，并授予 Kubernetes 只读权限；不支持 Fargate-only、Bottlerocket 或已经安装 `obs-agent` 的节点。该方式会临时修改节点 IAM Role，只用于专用 Workshop 集群，不用于共享生产节点。
+
+先在 Agent Workspace 中创建专用 Agent，并从该 Agent 的 **Run & Deploy** 页面取得 Agent ID、Agent API Key 和 Beak Endpoint。然后在安装 DataKit 与 Demo 时使用的管理员终端中执行：
+
+```bash
+export AWS_REGION="ap-northeast-1"
+export EKS_CLUSTER_NAME="observability-demo"
+
+# 非默认站点时，填写 Run & Deploy 安装命令中的 Endpoint。
+export BEAK_ENDPOINT="https://agent-api.truewatch.com"
+
+scripts/install-obs-agent-eks-node-demo.sh
+```
+
+脚本会选择一个运行中的 EC2 节点，通过 SSM 创建加密交互会话，再提示输入 Agent ID 和 Agent API Key。API Key 不会进入 Shell 历史、SSM Run Command 参数或仓库；节点上生成的 Kubernetes Token 默认有效期为 8 小时。
+
+如果安装在完成前中断且仓库根目录已经生成 `.obs-agent-eks-node-demo.state`，请先执行 `scripts/install-obs-agent-eks-node-demo.sh --cleanup`，再重新安装。
+
+完成 Agent Teams 演示后，在删除 EKS 节点前清理 Runtime、节点凭证、临时 Kubernetes RBAC 和临时附加的 SSM 权限：
+
+```bash
+scripts/install-obs-agent-eks-node-demo.sh --cleanup
+```
+
 ## RUM 与配置边界
 
 - DataWay URL：敏感，只通过 DataKit 安装环境传入。

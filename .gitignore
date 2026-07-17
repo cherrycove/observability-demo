@@ -9,3 +9,4 @@ dist/
 *.tmp
 coverage/
 charts/*.tgz
+.obs-agent-eks-node-demo.state
