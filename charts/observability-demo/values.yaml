@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   registry: ghcr.io
-  owner: cherrycove
+  owner: truewatchtech
   tag: latest
   pullPolicy: Always
 

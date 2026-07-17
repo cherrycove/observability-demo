@@ -2,20 +2,39 @@
 set -Eeuo pipefail
 
 # One-click workshop installer for a self-hosted obs-agent on an existing EKS node.
-# Run this script from an administrator workstation or AWS CloudShell.
-# The only interactive inputs are Agent ID and Agent API Key, entered inside an
-# encrypted SSM interactive session so the API key is not sent via Run Command.
+# Run this script from an administrator workstation or AWS CloudShell. A short-lived
+# privileged helper Pod enters the selected node through its host filesystem; this
+# avoids modifying the EC2 node IAM role or requiring AWS Systems Manager.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-ap-northeast-1}}"
 CLUSTER_NAME="${EKS_CLUSTER_NAME:-${CLUSTER_NAME:-}}"
 TARGET_INSTANCE_ID="${TARGET_INSTANCE_ID:-}"
+TARGET_NODE_NAME="${TARGET_NODE_NAME:-}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-}"
 BEAK_ENDPOINT="${BEAK_ENDPOINT:-https://agent-api.truewatch.com}"
 TOKEN_DURATION="${TOKEN_DURATION:-8h}"
 STATE_FILE="${STATE_FILE:-${REPO_ROOT}/.obs-agent-eks-node-demo.state}"
-SSM_POLICY_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+HELPER_IMAGE="${HELPER_IMAGE:-public.ecr.aws/docker/library/busybox:1.36}"
+HELPER_NAMESPACE="obs-agent"
+HELPER_POD_NAME="obs-agent-node-helper"
+TEMP_DIR=""
+ADMIN_KUBECONFIG=""
+HELPER_POD_CREATED=0
+
+cleanup_local_resources() {
+  if [[ "$HELPER_POD_CREATED" == "1" \
+    && -n "${ADMIN_KUBECONFIG:-}" \
+    && -f "$ADMIN_KUBECONFIG" ]]; then
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" delete pod \
+      "$HELPER_POD_NAME" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "${TEMP_DIR:-}" ]]; then
+    rm -rf -- "$TEMP_DIR"
+  fi
+}
 
 usage() {
   cat <<'EOF'
@@ -26,10 +45,12 @@ Usage:
 Optional environment overrides:
   AWS_REGION          Default: AWS_DEFAULT_REGION or ap-northeast-1
   EKS_CLUSTER_NAME    Required; CLUSTER_NAME is also accepted
-  TARGET_INSTANCE_ID  Default: automatically select the first running EKS node
+  TARGET_NODE_NAME    Default: automatically select the first Ready Linux worker
+  TARGET_INSTANCE_ID  Optional EC2 instance ID used to select a Kubernetes node
   KUBECTL_VERSION     Default: latest patch matching the EKS minor version
   BEAK_ENDPOINT       Default: https://agent-api.truewatch.com
   TOKEN_DURATION      Default: 8h
+  HELPER_IMAGE        Default: public.ecr.aws/docker/library/busybox:1.36
   STATE_FILE          Default: <repository>/.obs-agent-eks-node-demo.state
 EOF
 }
@@ -47,70 +68,104 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
-json_commands() {
-  python3 -c 'import json, sys; print(json.dumps({"commands": [sys.stdin.read()]}))'
-}
+select_target_node() {
+  local provider_id os_image
 
-wait_for_ssm() {
-  local instance_id="$1"
-  local attempt status
-
-  for attempt in $(seq 1 36); do
-    status="$(aws ssm describe-instance-information \
-      --region "$REGION" \
-      --filters "Key=InstanceIds,Values=$instance_id" \
-      --query 'InstanceInformationList[0].PingStatus' \
-      --output text 2>/dev/null || true)"
-
-    if [[ "$status" == "Online" ]]; then
-      return 0
-    fi
-
-    printf 'Waiting for SSM registration (%s/36)...\n' "$attempt"
-    sleep 10
-  done
-
-  return 1
-}
-
-show_command_result() {
-  local command_id="$1"
-  local instance_id="$2"
-
-  aws ssm get-command-invocation \
-    --region "$REGION" \
-    --command-id "$command_id" \
-    --instance-id "$instance_id" \
-    --query '{Status:Status,StandardOutput:StandardOutputContent,StandardError:StandardErrorContent}' \
-    --output yaml || true
-}
-
-send_setup_command() {
-  local instance_id="$1"
-  local command_text="$2"
-  local comment="$3"
-  local parameters command_id
-
-  parameters="$(printf '%s' "$command_text" | json_commands)"
-  command_id="$(aws ssm send-command \
-    --region "$REGION" \
-    --instance-ids "$instance_id" \
-    --document-name AWS-RunShellScript \
-    --comment "$comment" \
-    --timeout-seconds 900 \
-    --parameters "$parameters" \
-    --query 'Command.CommandId' \
-    --output text)"
-
-  if ! aws ssm wait command-executed \
-    --region "$REGION" \
-    --command-id "$command_id" \
-    --instance-id "$instance_id"; then
-    show_command_result "$command_id" "$instance_id"
-    return 1
+  if [[ -n "$TARGET_NODE_NAME" ]]; then
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get node "$TARGET_NODE_NAME" >/dev/null
+  elif [[ -n "$TARGET_INSTANCE_ID" ]]; then
+    TARGET_NODE_NAME="$(KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get nodes -o json | \
+      python3 -c 'import json, sys
+instance_id = sys.argv[1]
+for item in json.load(sys.stdin)["items"]:
+    if item.get("spec", {}).get("providerID", "").endswith("/" + instance_id):
+        print(item["metadata"]["name"])
+        break' "$TARGET_INSTANCE_ID")"
+  else
+    TARGET_NODE_NAME="$(KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get nodes -o json | \
+      python3 -c 'import json, sys
+for item in json.load(sys.stdin)["items"]:
+    spec = item.get("spec", {})
+    labels = item.get("metadata", {}).get("labels", {})
+    ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in item.get("status", {}).get("conditions", []))
+    control_plane = "node-role.kubernetes.io/control-plane" in labels or "node-role.kubernetes.io/master" in labels
+    if ready and not spec.get("unschedulable", False) and not control_plane:
+        print(item["metadata"]["name"])
+        break')"
   fi
 
-  show_command_result "$command_id" "$instance_id"
+  [[ -n "$TARGET_NODE_NAME" ]] || die "No matching Ready EKS worker node was found"
+  provider_id="$(KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get node "$TARGET_NODE_NAME" \
+    -o jsonpath='{.spec.providerID}')"
+  os_image="$(KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get node "$TARGET_NODE_NAME" \
+    -o jsonpath='{.status.nodeInfo.osImage}')"
+  [[ "$os_image" != *Bottlerocket* ]] || die "Bottlerocket nodes are not supported"
+  [[ "$(KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get node "$TARGET_NODE_NAME" \
+    -o jsonpath='{.status.nodeInfo.operatingSystem}')" == "linux" ]] || \
+    die "Only Linux worker nodes are supported"
+
+  if [[ -z "$TARGET_INSTANCE_ID" && "$provider_id" == */* ]]; then
+    TARGET_INSTANCE_ID="${provider_id##*/}"
+  fi
+}
+
+create_helper_pod() {
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" delete pod \
+    "$HELPER_POD_NAME" --ignore-not-found --wait=true >/dev/null
+
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${HELPER_POD_NAME}
+  namespace: ${HELPER_NAMESPACE}
+  labels:
+    app.kubernetes.io/name: obs-agent-node-helper
+    app.kubernetes.io/part-of: observability-demo-workshop
+spec:
+  nodeName: ${TARGET_NODE_NAME}
+  hostPID: true
+  hostNetwork: true
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  tolerations:
+    - operator: Exists
+  containers:
+    - name: helper
+      image: ${HELPER_IMAGE}
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-c", "sleep 3600"]
+      securityContext:
+        privileged: true
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+      volumeMounts:
+        - name: host-root
+          mountPath: /host
+  volumes:
+    - name: host-root
+      hostPath:
+        path: /
+        type: Directory
+EOF
+  HELPER_POD_CREATED=1
+
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" wait \
+    --for=condition=Ready "pod/$HELPER_POD_NAME" --timeout=2m
+}
+
+delete_helper_pod() {
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" delete pod \
+    "$HELPER_POD_NAME" --ignore-not-found --wait=true >/dev/null
+  HELPER_POD_CREATED=0
+}
+
+run_on_node() {
+  local command_text="$1"
+
+  printf '%s\n' "$command_text" | \
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" exec -i \
+      "$HELPER_POD_NAME" -- chroot /host /bin/bash -s
 }
 
 load_state_value() {
@@ -128,43 +183,32 @@ cleanup_demo() {
   REGION="$(load_state_value REGION)"
   CLUSTER_NAME="$(load_state_value CLUSTER_NAME)"
   TARGET_INSTANCE_ID="$(load_state_value TARGET_INSTANCE_ID)"
-  NODE_ROLE_NAME="$(load_state_value NODE_ROLE_NAME)"
-  SSM_POLICY_ADDED="$(load_state_value SSM_POLICY_ADDED)"
+  TARGET_NODE_NAME="$(load_state_value TARGET_NODE_NAME)"
   NAMESPACE_CREATED="$(load_state_value NAMESPACE_CREATED)"
 
   [[ -n "$REGION" && -n "$CLUSTER_NAME" ]] || die "State file is incomplete"
 
-  local temp_dir admin_kubeconfig cleanup_command
-  temp_dir="$(mktemp -d)"
-  admin_kubeconfig="$temp_dir/admin-kubeconfig"
-  trap 'rm -rf "$temp_dir"' EXIT
+  local cleanup_command
+  TEMP_DIR="$(mktemp -d)"
+  ADMIN_KUBECONFIG="$TEMP_DIR/admin-kubeconfig"
+  trap cleanup_local_resources EXIT
 
-  log "Removing temporary Kubernetes RBAC"
+  log "Creating an isolated administrator kubeconfig for $CLUSTER_NAME"
   aws eks update-kubeconfig \
     --region "$REGION" \
     --name "$CLUSTER_NAME" \
-    --kubeconfig "$admin_kubeconfig" >/dev/null
+    --kubeconfig "$ADMIN_KUBECONFIG" >/dev/null
 
-  KUBECONFIG="$admin_kubeconfig" kubectl delete \
-    clusterrolebinding obs-agent-demo-view \
-    --ignore-not-found
-  KUBECONFIG="$admin_kubeconfig" kubectl delete \
-    clusterrolebinding obs-agent-demo-cluster-read \
-    --ignore-not-found
-  KUBECONFIG="$admin_kubeconfig" kubectl delete \
-    clusterrole obs-agent-demo-cluster-read \
-    --ignore-not-found
-  KUBECONFIG="$admin_kubeconfig" kubectl -n obs-agent delete \
-    serviceaccount obs-agent \
-    --ignore-not-found
+  select_target_node
+  log "Selected node: $TARGET_NODE_NAME"
 
-  if [[ "$NAMESPACE_CREATED" == "1" ]]; then
-    KUBECONFIG="$admin_kubeconfig" kubectl delete namespace obs-agent --ignore-not-found
-  fi
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl create namespace "$HELPER_NAMESPACE" \
+    --dry-run=client -o yaml | \
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl apply -f - >/dev/null
 
-  if [[ -n "$TARGET_INSTANCE_ID" ]] && wait_for_ssm "$TARGET_INSTANCE_ID"; then
-    log "Stopping obs-agent and removing the temporary kubeconfig"
-    cleanup_command=$(cat <<'EOF'
+  log "Opening a temporary privileged helper Pod for node cleanup"
+  create_helper_pod
+  cleanup_command=$(cat <<'EOF'
 set -eu
 marker=/etc/obs-agent/workshop-install.marker
 if [ ! -f "$marker" ]; then
@@ -188,17 +232,27 @@ userdel obs-agent 2>/dev/null || true
 groupdel obs-agent 2>/dev/null || true
 EOF
 )
-    send_setup_command "$TARGET_INSTANCE_ID" "$cleanup_command" "Clean up obs-agent workshop demo" || \
-      die "Node-local cleanup failed; state file was preserved for retry"
-  else
-    die "Node is not online in SSM; state file was preserved. Start or terminate the node, then retry cleanup."
-  fi
+  run_on_node "$cleanup_command" || \
+    die "Node-local cleanup failed; state file was preserved for retry"
+  delete_helper_pod
 
-  if [[ "$SSM_POLICY_ADDED" == "1" && -n "$NODE_ROLE_NAME" ]]; then
-    log "Detaching the temporary SSM policy from $NODE_ROLE_NAME"
-    aws iam detach-role-policy \
-      --role-name "$NODE_ROLE_NAME" \
-      --policy-arn "$SSM_POLICY_ARN"
+  log "Removing temporary Kubernetes RBAC"
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl delete \
+    clusterrolebinding obs-agent-demo-view \
+    --ignore-not-found
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl delete \
+    clusterrolebinding obs-agent-demo-cluster-read \
+    --ignore-not-found
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl delete \
+    clusterrole obs-agent-demo-cluster-read \
+    --ignore-not-found
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" delete \
+    serviceaccount obs-agent \
+    --ignore-not-found
+
+  if [[ "$NAMESPACE_CREATED" == "1" ]]; then
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl delete namespace "$HELPER_NAMESPACE" \
+      --ignore-not-found
   fi
 
   rm -f "$STATE_FILE"
@@ -211,17 +265,15 @@ install_demo() {
   require_command python3
   require_command base64
   require_command curl
-  require_command session-manager-plugin
 
   [[ -n "$CLUSTER_NAME" ]] || \
     die "EKS_CLUSTER_NAME is required (CLUSTER_NAME is also accepted)"
   [[ ! -e "$STATE_FILE" ]] || \
     die "State file already exists. Run '$0 --cleanup' before installing again: $STATE_FILE"
 
-  local temp_dir admin_kubeconfig
-  temp_dir="$(mktemp -d)"
-  admin_kubeconfig="$temp_dir/admin-kubeconfig"
-  trap 'rm -rf "$temp_dir"' EXIT
+  TEMP_DIR="$(mktemp -d)"
+  ADMIN_KUBECONFIG="$TEMP_DIR/admin-kubeconfig"
+  trap cleanup_local_resources EXIT
 
   log "Checking AWS identity"
   aws sts get-caller-identity --output table
@@ -230,8 +282,8 @@ install_demo() {
   aws eks update-kubeconfig \
     --region "$REGION" \
     --name "$CLUSTER_NAME" \
-    --kubeconfig "$admin_kubeconfig" >/dev/null
-  KUBECONFIG="$admin_kubeconfig" kubectl cluster-info >/dev/null
+    --kubeconfig "$ADMIN_KUBECONFIG" >/dev/null
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl cluster-info >/dev/null
 
   if [[ -z "$KUBECTL_VERSION" ]]; then
     local cluster_version
@@ -251,7 +303,7 @@ install_demo() {
 
   local namespace_created
   namespace_created=0
-  if ! KUBECONFIG="$admin_kubeconfig" kubectl get namespace obs-agent >/dev/null 2>&1; then
+  if ! KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get namespace "$HELPER_NAMESPACE" >/dev/null 2>&1; then
     namespace_created=1
   fi
 
@@ -261,67 +313,16 @@ install_demo() {
     "clusterrolebinding/obs-agent-demo-cluster-read" \
     "clusterrole/obs-agent-demo-cluster-read"; do
     # shellcheck disable=SC2086
-    if KUBECONFIG="$admin_kubeconfig" kubectl get $resource >/dev/null 2>&1; then
+    if KUBECONFIG="$ADMIN_KUBECONFIG" kubectl get $resource >/dev/null 2>&1; then
       die "Existing Kubernetes resource conflicts with this Workshop: $resource"
     fi
   done
 
-  if [[ -z "$TARGET_INSTANCE_ID" ]]; then
-    log "Automatically selecting a running EKS node"
-    TARGET_INSTANCE_ID="$(aws ec2 describe-instances \
-      --region "$REGION" \
-      --filters \
-        "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" \
-        "Name=instance-state-name,Values=running" \
-      --query 'Reservations[].Instances[].InstanceId' \
-      --output text | awk '{print $1}')"
-
-    if [[ -z "$TARGET_INSTANCE_ID" || "$TARGET_INSTANCE_ID" == "None" ]]; then
-      TARGET_INSTANCE_ID="$(aws ec2 describe-instances \
-        --region "$REGION" \
-        --filters \
-          "Name=tag:kubernetes.io/cluster/$CLUSTER_NAME,Values=owned,shared" \
-          "Name=instance-state-name,Values=running" \
-        --query 'Reservations[].Instances[].InstanceId' \
-        --output text | awk '{print $1}')"
-    fi
+  if [[ -z "$TARGET_NODE_NAME" && -z "$TARGET_INSTANCE_ID" ]]; then
+    log "Automatically selecting a Ready EKS worker node"
   fi
-
-  [[ -n "$TARGET_INSTANCE_ID" && "$TARGET_INSTANCE_ID" != "None" ]] || \
-    die "No running EC2 node found for EKS cluster $CLUSTER_NAME"
-
-  log "Selected node: $TARGET_INSTANCE_ID"
-
-  local profile_arn profile_name node_role_name ssm_policy_count ssm_policy_added
-  profile_arn="$(aws ec2 describe-instances \
-    --region "$REGION" \
-    --instance-ids "$TARGET_INSTANCE_ID" \
-    --query 'Reservations[0].Instances[0].IamInstanceProfile.Arn' \
-    --output text)"
-  [[ -n "$profile_arn" && "$profile_arn" != "None" ]] || \
-    die "The selected node does not have an IAM instance profile"
-
-  profile_name="${profile_arn##*/}"
-  node_role_name="$(aws iam get-instance-profile \
-    --instance-profile-name "$profile_name" \
-    --query 'InstanceProfile.Roles[0].RoleName' \
-    --output text)"
-
-  ssm_policy_count="$(aws iam list-attached-role-policies \
-    --role-name "$node_role_name" \
-    --query "length(AttachedPolicies[?PolicyArn=='$SSM_POLICY_ARN'])" \
-    --output text)"
-  ssm_policy_added=0
-
-  if [[ "$ssm_policy_count" == "0" ]]; then
-    log "Temporarily attaching SSM access to node role $node_role_name"
-    aws iam attach-role-policy \
-      --role-name "$node_role_name" \
-      --policy-arn "$SSM_POLICY_ARN"
-    ssm_policy_added=1
-  else
-    log "SSM policy is already attached to $node_role_name"
-  fi
+  select_target_node
+  log "Selected node: $TARGET_NODE_NAME (${TARGET_INSTANCE_ID:-unknown instance})"
 
   # Save enough state immediately so a later failure can still be cleaned up.
   umask 077
@@ -329,31 +330,26 @@ install_demo() {
 REGION=$REGION
 CLUSTER_NAME=$CLUSTER_NAME
 TARGET_INSTANCE_ID=$TARGET_INSTANCE_ID
-NODE_ROLE_NAME=$node_role_name
-SSM_POLICY_ADDED=$ssm_policy_added
+TARGET_NODE_NAME=$TARGET_NODE_NAME
 NAMESPACE_CREATED=$namespace_created
 EOF
 
-  log "Waiting for the node to become available in SSM"
-  wait_for_ssm "$TARGET_INSTANCE_ID" || \
-    die "The node did not register with SSM. Check SSM Agent, VPC egress/endpoints, and the node role."
-
   log "Creating the temporary read-only Kubernetes identity"
-  KUBECONFIG="$admin_kubeconfig" kubectl create namespace obs-agent \
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl create namespace "$HELPER_NAMESPACE" \
     --dry-run=client -o yaml | \
-    KUBECONFIG="$admin_kubeconfig" kubectl apply -f -
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl apply -f -
 
-  KUBECONFIG="$admin_kubeconfig" kubectl -n obs-agent create serviceaccount obs-agent \
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" create serviceaccount obs-agent \
     --dry-run=client -o yaml | \
-    KUBECONFIG="$admin_kubeconfig" kubectl apply -f -
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl apply -f -
 
-  KUBECONFIG="$admin_kubeconfig" kubectl create clusterrolebinding obs-agent-demo-view \
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl create clusterrolebinding obs-agent-demo-view \
     --clusterrole=view \
     --serviceaccount=obs-agent:obs-agent \
     --dry-run=client -o yaml | \
-    KUBECONFIG="$admin_kubeconfig" kubectl apply -f -
+    KUBECONFIG="$ADMIN_KUBECONFIG" kubectl apply -f -
 
-  KUBECONFIG="$admin_kubeconfig" kubectl apply -f - <<'EOF'
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl apply -f - <<'EOF'
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -386,16 +382,16 @@ subjects:
   namespace: obs-agent
 EOF
 
-  KUBECONFIG="$admin_kubeconfig" kubectl auth can-i \
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl auth can-i \
     --as=system:serviceaccount:obs-agent:obs-agent \
     get pods --all-namespaces | grep -qx yes || die "ServiceAccount cannot read pods"
-  KUBECONFIG="$admin_kubeconfig" kubectl auth can-i \
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl auth can-i \
     --as=system:serviceaccount:obs-agent:obs-agent \
     get nodes | grep -qx yes || die "ServiceAccount cannot read nodes"
 
   log "Generating a $TOKEN_DURATION read-only kubeconfig"
   local token server ca_data kubeconfig_file kubeconfig_b64
-  token="$(KUBECONFIG="$admin_kubeconfig" kubectl -n obs-agent create token obs-agent \
+  token="$(KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n obs-agent create token obs-agent \
     --duration="$TOKEN_DURATION")"
   server="$(aws eks describe-cluster \
     --region "$REGION" \
@@ -407,7 +403,7 @@ EOF
     --name "$CLUSTER_NAME" \
     --query 'cluster.certificateAuthority.data' \
     --output text)"
-  kubeconfig_file="$temp_dir/agent-kubeconfig"
+  kubeconfig_file="$TEMP_DIR/agent-kubeconfig"
 
   umask 077
   printf '%s\n' \
@@ -575,20 +571,18 @@ EOF
   remote_setup="${remote_setup//__INTERACTIVE_INSTALLER_B64__/$interactive_installer_b64}"
   unset kubeconfig_b64 interactive_installer interactive_installer_b64
 
+  log "Opening a temporary privileged helper Pod on $TARGET_NODE_NAME"
+  create_helper_pod
+
   log "Installing kubectl and the secure interactive Agent installer on the node"
-  send_setup_command \
-    "$TARGET_INSTANCE_ID" \
-    "$remote_setup" \
-    "Prepare obs-agent workshop demo"
+  run_on_node "$remote_setup"
   unset remote_setup
 
-  log "Opening the encrypted interactive installer"
+  log "Opening the encrypted Kubernetes exec installer"
   printf 'Enter the Agent ID and Agent API Key when prompted.\n'
-  aws ssm start-session \
-    --region "$REGION" \
-    --target "$TARGET_INSTANCE_ID" \
-    --document-name AWS-StartInteractiveCommand \
-    --parameters '{"command":["sudo /usr/local/sbin/install-obs-agent-demo"]}'
+  KUBECONFIG="$ADMIN_KUBECONFIG" kubectl -n "$HELPER_NAMESPACE" exec -it \
+    "$HELPER_POD_NAME" -- chroot /host /usr/local/sbin/install-obs-agent-demo
+  delete_helper_pod
 
   log "Installation session finished"
   printf 'State file: %s\n' "$STATE_FILE"

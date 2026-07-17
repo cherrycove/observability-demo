@@ -138,7 +138,7 @@ done
 
 Chart 会在 `demo-observability-demo` Secret 中自动生成 Demo 内部密码和故障控制口令。
 
-Chart 默认拉取 `ghcr.io/cherrycove/observability-demo-{gateway,order,inventory,payment}-service:latest`，并使用 `imagePullPolicy: Always`。四个 GHCR Package 必须设为 Public，最终用户不需要执行 `docker login`。
+Chart 默认拉取 `ghcr.io/truewatchtech/observability-demo-{gateway,order,inventory,payment}-service:latest`，并使用 `imagePullPolicy: Always`。四个 GHCR Package 均为 Public，最终用户不需要执行 `docker login`。
 
 ### 4. 获取外部 URL
 
@@ -193,7 +193,7 @@ kubectl delete namespace observability-demo
 
 ### 6. 可选：在 EKS 节点部署 Agent Teams Runtime
 
-Agent Teams Runtime 需要部署在能够访问目标工具和数据的环境中。Workshop 可将自托管 `obs-agent` 临时安装到一台 EKS EC2 工作节点，并授予 Kubernetes 只读权限；不支持 Fargate-only、Bottlerocket 或已经安装 `obs-agent` 的节点。该方式会临时修改节点 IAM Role，只用于专用 Workshop 集群，不用于共享生产节点。
+Agent Teams Runtime 需要部署在能够访问目标工具和数据的环境中。Workshop 可将自托管 `obs-agent` 临时安装到一台 EKS EC2 工作节点，并授予 Kubernetes 只读权限；不支持 Fargate-only、Bottlerocket 或已经安装 `obs-agent` 的节点。脚本使用一个短生命周期的特权 helper Pod 进入目标节点，不修改 EC2 Node Role，也不依赖 SSM。执行者必须能够在集群中创建 privileged、hostPath 和 hostPID Pod。该方式只用于专用 Workshop 集群，不用于共享生产节点。
 
 先在 Agent Workspace 中创建专用 Agent，并从该 Agent 的 **Run & Deploy** 页面取得 Agent ID、Agent API Key 和 Beak Endpoint。然后在安装 DataKit 与 Demo 时使用的管理员终端中执行：
 
@@ -207,11 +207,11 @@ export BEAK_ENDPOINT="https://agent-api.truewatch.com"
 scripts/install-obs-agent-eks-node-demo.sh
 ```
 
-脚本会选择一个运行中的 EC2 节点，通过 SSM 创建加密交互会话，再提示输入 Agent ID 和 Agent API Key。API Key 不会进入 Shell 历史、SSM Run Command 参数或仓库；节点上生成的 Kubernetes Token 默认有效期为 8 小时。
+脚本会选择一个 Ready 的 Linux 工作节点，创建临时 helper Pod，并通过加密的 Kubernetes exec 会话提示输入 Agent ID 和 Agent API Key。API Key 不会进入 Shell 历史、Pod 定义或仓库；helper Pod 会在安装结束或脚本退出时删除。节点上生成的 Kubernetes Token 默认有效期为 8 小时。
 
 如果安装在完成前中断且仓库根目录已经生成 `.obs-agent-eks-node-demo.state`，请先执行 `scripts/install-obs-agent-eks-node-demo.sh --cleanup`，再重新安装。
 
-完成 Agent Teams 演示后，在删除 EKS 节点前清理 Runtime、节点凭证、临时 Kubernetes RBAC 和临时附加的 SSM 权限：
+完成 Agent Teams 演示后，在删除 EKS 节点前清理 Runtime、节点凭证和临时 Kubernetes RBAC：
 
 ```bash
 scripts/install-obs-agent-eks-node-demo.sh --cleanup
