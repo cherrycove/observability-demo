@@ -105,7 +105,7 @@ helm upgrade --install datakit datakit/datakit \
 unset DATAWAY_URL
 ```
 
-仓库中的 values 开启 Kubernetes/容器与进程指标、eBPF L4/L7 网络流、DDTrace、JVM StatsD、Profile、RUM、日志采集和 Pipeline，并为独立 Demo 集群设置 `project=mall-demo`。真实 DataWay URL 由 chart 保存到 Kubernetes Secret，不写入仓库。
+仓库中的 values 开启 Kubernetes/容器与进程指标、eBPF L4/L7 网络流、DDTrace、JVM StatsD、Profile、RUM 和日志采集，并为独立 Demo 集群设置 `project=mall-demo`。日志保留完整原始 `message`，业务字段使用 [`observability/platform-log-pipeline.p`](observability/platform-log-pipeline.p) 在平台 Pipeline 中解析。真实 DataWay URL 由 chart 保存到 Kubernetes Secret，不写入仓库。
 
 ```bash
 kubectl -n datakit get pods

@@ -29,7 +29,7 @@ spec:
         project: {{ required "observability.project is required" $.Values.observability.project | quote }}
       annotations:
         datakit/logs: >-
-          [{"disable":false,"source":"java_selfheal_demo","service":"{{ $service.name }}","pipeline":"java-selfheal-demo.p"}]
+          [{"disable":false,"source":"java_selfheal_demo","service":"{{ $service.name }}"}]
     spec:
       serviceAccountName: {{ include "observability-demo.fullname" $ }}-{{ if and (eq $service.name "order-service") $.Values.logViewer.enabled }}log-reader{{ else }}app{{ end }}
       automountServiceAccountToken: {{ and (eq $service.name "order-service") $.Values.logViewer.enabled }}

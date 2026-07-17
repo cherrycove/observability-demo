@@ -153,6 +153,12 @@ jobs:
           test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=mysql -o jsonpath='{.items[0].metadata.labels.project}')" = "mall-demo"
           test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].spec.containers[0].env[?(@.name=="DD_TAGS")].value}')" = "project:mall-demo"
           test "$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=gateway-service -o jsonpath='{.items[0].spec.automountServiceAccountToken}')" = "false"
-          kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.annotations.datakit/logs}' | grep -q java-selfheal-demo.p
+          log_annotation="$(kubectl -n observability-demo get pod -l app.kubernetes.io/component=order-service -o jsonpath='{.items[0].metadata.annotations.datakit/logs}')"
+          grep -q '"source":"java_selfheal_demo"' <<<"${log_annotation}"
+          grep -q '"service":"order-service"' <<<"${log_annotation}"
+          if grep -q '"pipeline"' <<<"${log_annotation}"; then
+            echo "::error::DataKit log annotation must leave the raw message for the platform Pipeline"
+            exit 1
+          fi
           kubectl auth can-i get pods/log --as system:serviceaccount:observability-demo:demo-observability-demo-log-reader -n observability-demo | grep -q yes
           kubectl auth can-i get secrets --as system:serviceaccount:observability-demo:demo-observability-demo-log-reader -n observability-demo | grep -q no
