@@ -78,8 +78,6 @@ jobs:
           docker compose build --pull
           docker compose up -d
       - name: Wait and smoke test
-        env:
-          DEMO_CONTROL_TOKEN: change-me-control
         run: |
           if ! curl --fail --silent \
             --retry 60 --retry-delay 5 --retry-all-errors --retry-max-time 300 \
@@ -125,7 +123,7 @@ jobs:
             kubectl -n observability-demo rollout status "${deployment}" --timeout=8m
           done
           secret_name=demo-observability-demo
-          secret_before="$(kubectl -n observability-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
+          secret_before="$(kubectl -n observability-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}')"
           test -n "${secret_before}"
           helm upgrade demo charts/observability-demo \
             --namespace observability-demo \
@@ -133,13 +131,10 @@ jobs:
             --set image.owner=library \
             --set image.tag=ci \
             --set image.pullPolicy=Never
-          secret_after="$(kubectl -n observability-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}:{.data.demo-control-token}')"
+          secret_after="$(kubectl -n observability-demo get secret "${secret_name}" -o jsonpath='{.data.mysql-password}:{.data.mysql-root-password}')"
           test "${secret_before}" = "${secret_after}"
       - name: Verify security and behavior
         run: |
-          export DEMO_CONTROL_TOKEN="$(kubectl -n observability-demo get secret demo-observability-demo \
-            -o jsonpath='{.data.demo-control-token}' | base64 --decode)"
-          test -n "${DEMO_CONTROL_TOKEN}"
           kubectl -n observability-demo port-forward svc/demo-observability-demo-gateway-service 8080:80 >/tmp/port-forward.log 2>&1 &
           if ! curl --fail --silent \
             --retry 30 --retry-delay 2 --retry-all-errors --retry-max-time 60 \
